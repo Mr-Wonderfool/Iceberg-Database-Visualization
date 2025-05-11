@@ -5,7 +5,6 @@ import pandas as pd
 from flask import jsonify, send_file, Blueprint
 import matplotlib.pyplot as plt
 
-from ..utils.hooks import dms2dec
 from ..models import IcebergInfo, Iceberg
 
 iceberg_info_bp = Blueprint("iceberg_info", __name__)
@@ -32,8 +31,8 @@ def iceberg_trajectory(iceberg_id):
     if not iceberg_info:
         return jsonify({"error": "Iceberg not found"}), 404
     dates = [info.record_time for info in iceberg_info]
-    longitudes = [dms2dec(info.dms_longitude) for info in iceberg_info]
-    latitudes = [dms2dec(info.dms_latitude) for info in iceberg_info]
+    longitudes = [info.longitude for info in iceberg_info]
+    latitudes = [info.latitude for info in iceberg_info]
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.scatter(longitudes, latitudes, marker="*", color="b", label="Locations", s=30)
     ax.set_title(f"Iceberg Trajectory-{iceberg_id}")

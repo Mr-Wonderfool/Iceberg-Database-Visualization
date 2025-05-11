@@ -48,9 +48,10 @@ class IcebergInfo(db.Model):
     __tablename__ = "iceberg_info"
     record_id = Column(Integer, primary_key=True, autoincrement=True)
     iceberg_id = Column(String(10), ForeignKey("iceberg.id"), nullable=False)
-    dms_longitude = Column(String(10), nullable=False)
-    dms_latitude = Column(String(10), nullable=False)
+    longitude = Column(Float, nullable=False)
+    latitude = Column(Float, nullable=False)
     rotational_velocity = Column(Float, nullable=True)
+    # format as: yyyy-mm-dd 00:00:00
     record_time = Column(DateTime, nullable=False)
     is_prediction = Column(Boolean, nullable=False)
 

@@ -43,8 +43,8 @@ def get_iceberg_by_id(iceberg_id: str):
     trajectory_points = []
     iceberg_info = IcebergInfo.query.filter_by(iceberg_id=iceberg_id).order_by(IcebergInfo.record_time.asc())
     for info in iceberg_info.all():
-        lat_decimal = dms2dec(info.dms_latitude)
-        lon_decimal = dms2dec(info.dms_longitude)
+        lat_decimal = info.latitude
+        lon_decimal = info.longitude
 
         trajectory_points.append(
             {

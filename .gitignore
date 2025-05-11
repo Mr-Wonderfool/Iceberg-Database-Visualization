@@ -296,4 +296,4 @@ tmp*
 tmp/
 *.ipynb
 *images/
-data/
+*data/

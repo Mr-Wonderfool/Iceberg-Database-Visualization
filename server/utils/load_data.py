@@ -2,11 +2,12 @@ import os
 import csv
 import json
 from datetime import datetime
+
 from ..config import ROOT_PWD
 from .types import MaskType, UserType
 from ..models import Iceberg, IcebergInfo, User
 from .hooks import read_current_iceberg_location, get_iceberg_details, save_data_as_file
-from .utils import dec2dms
+from .utils import dms2dec
 
 
 def initialize_db(data_dir, db):
@@ -24,8 +25,8 @@ def initialize_db(data_dir, db):
                 for row in rows[-10:]:  # ! process the last ten rows
                     date_str = row["date"]
                     date_obj = datetime.strptime(date_str, "%Y%j")  # Convert YYYDDD format
-                    dms_lat = dec2dms(row["lat"], is_latitude=True)
-                    dms_lon = dec2dms(row["lon"], is_latitude=False)
+                    latitude = float(row["lat"])
+                    longitude = float(row["lon"])
                     mask = MaskType(int(row["mask"])).name  # should convert to Enum
                     vel_angle = float(row["vel_angle"]) if row["vel_angle"] else None
                     # ! create iceberg before iceberg info
@@ -38,8 +39,8 @@ def initialize_db(data_dir, db):
                     # info entry
                     iceberg_info = IcebergInfo(
                         iceberg_id=iceberg_id,
-                        dms_latitude=dms_lat,
-                        dms_longitude=dms_lon,
+                        latitude=latitude,
+                        longitude=longitude,
                         rotational_velocity=vel_angle,
                         record_time=date_obj,
                         is_prediction=False,
@@ -72,8 +73,10 @@ def get_new_data(scraped_json_path, db):
             iceberg_id = iceberg_data["iceberg_id"]
             dms_longitude = iceberg_data["dms_longitude"]
             dms_latitude = iceberg_data["dms_latitude"]
-            longitude = iceberg_data["longitude"]
-            latitude = iceberg_data["latitude"]  # ! since conversion is straight-forward, we wont be using this
+            longitude, latitude = dms2dec(dms_longitude), dms2dec(dms_latitude)
+            # if conversion failed, then dms not in proper format, consider this data to be invalid
+            if longitude is None or latitude is None:
+                continue
             recent_observation_date = datetime.strptime(iceberg_data["recent_observation"], "%m/%d/%y")
             iceberg = Iceberg.query.filter_by(id=iceberg_id).first()
             if not iceberg:
@@ -81,8 +84,8 @@ def get_new_data(scraped_json_path, db):
                 db.session.add(iceberg)
             iceberg_info = IcebergInfo(
                 iceberg_id=iceberg_id,
-                dms_longitude=dms_longitude,
-                dms_latitude=dms_latitude,
+                longitude=dms2dec(dms_longitude),
+                latitude=dms2dec(dms_latitude),
                 record_time=recent_observation_date,
                 is_prediction=False,  # Assuming it's not a prediction for now
             )
