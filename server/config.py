@@ -1,0 +1,5 @@
+SECRET_KEY = "iceberg_database_design"
+JWT_SECRET_KEY = "iceberg_database_design_jwt"
+SQLALCHEMY_DATABASE_URI = "sqlite:///db.sqlite"
+# ROOT_PWD = "tongji_iceberg_database"
+ROOT_PWD = "111"
