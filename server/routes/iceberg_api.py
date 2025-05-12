@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy import and_
+import datetime
+from dateutil.relativedelta import relativedelta
 
-from ..utils.utils import dms2dec
 from ..models import db, Iceberg, IcebergInfo
 
 iceberg_api_bp = Blueprint("iceberg_api", __name__)
@@ -10,7 +11,7 @@ iceberg_api_bp = Blueprint("iceberg_api", __name__)
 @iceberg_api_bp.route("/iceberg/locations_in_bounds", methods=["GET"])
 def get_iceberg_locations_in_bounds():
     """
-    Search for icebergs within the given geological bounds. 
+    Search for icebergs within the given geological bounds.
     Expected query parameters: (minLat, maxLat, minLon, maxLon) in decimal
     """
     try:
@@ -18,19 +19,40 @@ def get_iceberg_locations_in_bounds():
         max_lon_str = request.args.get("maxLon")
         min_lat_str = request.args.get("minLat")
         max_lat_str = request.args.get("maxLat")
-        
+
         if not all([min_lon_str, max_lon_str, min_lat_str, max_lat_str]):
             return jsonify({"error": "Missing one or more required boundary parameters"}), 400
-        
+
         min_lon = float(min_lon_str)
         max_lon = float(max_lon_str)
         min_lat = float(min_lat_str)
         max_lat = float(max_lat_str)
-        
-        all_infos = IcebergInfo.query
-    
+
+        current_date = datetime.datetime.today()
+        one_year_range = current_date - relativedelta(months=12)
+        filter_date_start = datetime.datetime.combine(one_year_range, datetime.time.min)
+
+        # query icebergInfo with position ranges and date range
+        query = db.session.query(IcebergInfo.latitude, IcebergInfo.longitude).filter(
+            and_(
+                IcebergInfo.latitude.between(min_lat, max_lat),
+                IcebergInfo.longitude.between(min_lon, max_lon),
+                IcebergInfo.record_time >= filter_date_start,
+            )
+        )
+        results = query.all()
+
+        locations = []
+        for lat, lon in results:
+            # for leaflet.heat, need to return format [lat, lng, density]
+            locations.append([lat, lon, 1.0])
+        return jsonify(locations)
+
     except ValueError:
         return jsonify({"error": "Invalid boundary parameter format, must be numbers"}), 400
+
+    except Exception as e:
+        return jsonify({"error": f"An exception occurred when fetching heatmap data. Details: {str(e)}"}), 500
 
 
 @iceberg_api_bp.route("/iceberg/<string:iceberg_id>", methods=["GET"])

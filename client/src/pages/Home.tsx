@@ -4,7 +4,7 @@ import axios from "axios";
 import { Box, Flex, IconButton, Input } from "@chakra-ui/react";
 import { FaSearch } from "react-icons/fa";
 import { IcebergInfo, Message } from "../types/types";
-import Sidebar from "../components/SideBar";
+import SideBar from "../components/SideBar";
 import IcebergInfoTable from "../components/IcebergInfoTable";
 import { useUser } from "../hooks/useUser";
 import { isLoggedIn } from "../hooks/useAuth";
@@ -21,6 +21,7 @@ const Home = () => {
     msgVisible: false,
   });
   const { user, setUser } = useUser();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
   const handleCardClick = (iceberg_id: string) => {
     console.log(`Logged in: ${isLoggedIn()}, user: ${user?.username}`);
@@ -40,12 +41,14 @@ const Home = () => {
     }
   };
   const fetchAPI = async () => {
-    const response = await axios.get("http://localhost:8080/iceberg_info/new_data");
+    const response = await axios.get(
+      "http://localhost:8080/iceberg_info/new_data"
+    );
     const allIcebergs = response.data;
     // filter data based on searching criterion
     const filteredData = allIcebergs.filter((iceberg: IcebergInfo) => {
       const recentDate = new Date(iceberg.recent_observation);
-      const threshold = new Date("2024-12-01");
+      const threshold = new Date("2025-03-01");
       return recentDate >= threshold;
     });
     setAllIcebergs(allIcebergs);
@@ -82,7 +85,17 @@ const Home = () => {
   return (
     <>
       <Flex>
-        <Sidebar username={user?.username} is_superuser={user?.is_superuser} />
+        <SideBar
+          username={user?.username}
+          is_superuser={user?.is_superuser}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onNavigate={() => setSidebarOpen(false)}
+          state={{
+            user_name: user?.username,
+            is_superuser: user?.is_superuser,
+          }}
+        />
         <ToastContainer position="top-center" className="text-center">
           <Toast
             onClose={() =>

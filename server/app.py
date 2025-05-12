@@ -39,8 +39,8 @@ def _get_new_data(data_dir):
 
 
 if __name__ == "__main__":
-    # currently not all data is used for initialization
-    _initialize_database(data_dir="../data/data")
-    # optionally scrape new data from web page
-    _get_new_data(data_dir="../data/data")
+    # # currently not all data is used for initialization
+    # _initialize_database(data_dir="../data/data")
+    # # optionally scrape new data from web page
+    # _get_new_data(data_dir="../data/data")
     app.run(debug=True, port=8080)

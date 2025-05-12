@@ -22,3 +22,6 @@ export type SearchCriteria = {
   minArea?: number;
   maxArea?: number;
 };
+
+// [lat, lon, intensity]
+export type HeatmapPoint = [number, number, number];

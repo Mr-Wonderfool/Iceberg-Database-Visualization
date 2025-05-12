@@ -1,22 +1,38 @@
-import { Box, Flex, Text, Icon } from "@chakra-ui/react";
-import { FaSnowflake, FaUserCog, FaUsers } from "react-icons/fa";
+import { Box, Flex, Text, Icon, IconButton } from "@chakra-ui/react";
+import { FaSnowflake, FaUserCog, FaUsers, FaBars } from "react-icons/fa";
 import { GiIcebergs } from "react-icons/gi";
 import { IconType } from "react-icons/lib";
 import { FaMapLocationDot } from "react-icons/fa6";
 import { useNavigate } from "react-router-dom";
+import { LocationState } from "../types/types";
 
 interface SideBarProps {
   username: string | undefined;
   is_superuser: boolean | undefined;
-  // action when clicking items
+  // optional actions when clicking icons, like closing rightaway
   onNavigate?: () => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  // additional state to pass on
+  state?: LocationState;
 }
 
-const Sidebar = ({ username, is_superuser, onNavigate }: SideBarProps) => {
+// width constants
+export const openWidth = "220px";
+export const closeWidth = "60px";
+
+const SideBar = ({
+  username,
+  is_superuser,
+  onNavigate,
+  isOpen,
+  onToggle,
+  state,
+}: SideBarProps) => {
   const navigate = useNavigate();
 
   const onButtonClick = (dest: string) => {
-    navigate(dest);
+    navigate(dest, { state });
     if (onNavigate) {
       onNavigate();
     }
@@ -28,46 +44,75 @@ const Sidebar = ({ username, is_superuser, onNavigate }: SideBarProps) => {
         position="fixed"
         top="0"
         left="0"
-        width="220px"
+        width={isOpen ? openWidth : closeWidth} // Adjusted width
         height="100vh"
         bg="gray.800"
         color="white"
         boxShadow="md"
         p="4"
+        transition="width 0.2s ease-in-out"
       >
-        <Flex direction="column" align="flex-start">
-          {/* main page */}
-          <SidebarItem
-            icon={FaSnowflake}
-            label="Icebergs"
-            onClick={() => onButtonClick("/")}
+        <Flex direction="column" align={isOpen ? "flex-start" : "center"}>
+          <IconButton
+            aria-label="Toggle Sidebar"
+            icon={<FaBars />}
+            onClick={onToggle}
+            variant="ghost"
+            color="white"
+            fontSize="xl"
+            mb="4"
+            _hover={{ bg: "gray.700" }}
+            alignSelf={isOpen ? "flex-end" : "center"}
           />
-          {/* map page (jump from home or directly navigate) */}
-          <SidebarItem
-            icon={FaMapLocationDot}
-            label="Map"
-            onClick={() => onButtonClick("/map")}
-          />
-          <SidebarItem icon={FaUsers} label="User Settings" />
-          {is_superuser && <SidebarItem icon={FaUserCog} label="Admin" />}
+
+          {isOpen && (
+            <>
+              {/* main page */}
+              <SidebarItem
+                icon={FaSnowflake}
+                label="Icebergs"
+                onClick={() => onButtonClick("/")}
+                isOpen={isOpen}
+              />
+              {/* map page */}
+              <SidebarItem
+                icon={FaMapLocationDot}
+                label="Map"
+                onClick={() => onButtonClick("/map")}
+                isOpen={isOpen}
+              />
+              <SidebarItem
+                icon={FaUsers}
+                label="User Settings"
+                isOpen={isOpen}
+              />
+              {is_superuser && (
+                <SidebarItem icon={FaUserCog} label="Admin" isOpen={isOpen} />
+              )}
+            </>
+          )}
         </Flex>
-      </Box>
-      <Box
-        position="fixed"
-        bottom="0.5vh"
-        left="0"
-        width="220px"
-        height="10vh"
-        color="white"
-        boxShadow="md"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-      >
-        <Icon as={GiIcebergs} color="white" fontSize="lg" mr={4} />
-        <Text fontSize="lg" textAlign="center" color="white" mt={3}>
-          {username ? username : "Guest User"}
-        </Text>
+
+        {isOpen && (
+          <Box
+            position="fixed"
+            bottom="0.5vh"
+            left="0"
+            width={openWidth}
+            height="10vh"
+            color="white"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            pl="4"
+            pr="4"
+          >
+            <Text fontSize="md" textAlign="center" color="white" noOfLines={1}>
+              <Icon as={GiIcebergs} color="white" fontSize="lg" mr={2} />
+              {username ? username : "Guest User"}
+            </Text>
+          </Box>
+        )}
       </Box>
     </Flex>
   );
@@ -77,9 +122,10 @@ interface SidebarItemProps {
   icon: IconType;
   label: string;
   onClick?: () => void;
+  isOpen: boolean; // To control label visibility if needed, though text handles it
 }
 
-const SidebarItem = ({ icon, label, onClick }: SidebarItemProps) => {
+const SidebarItem = ({ icon, label, onClick, isOpen }: SidebarItemProps) => {
   return (
     <Flex
       alignItems="center"
@@ -89,13 +135,16 @@ const SidebarItem = ({ icon, label, onClick }: SidebarItemProps) => {
       width="100%"
       onClick={onClick}
       _hover={{ bg: "gray.700", cursor: "pointer" }}
+      justifyContent={isOpen ? "flex-start" : "center"}
     >
-      <Text fontSize="xl" textAlign="center">
-        <Icon as={icon} color="white" fontSize="xl" mr="4" />
-        {label}
-      </Text>
+      {isOpen && (
+        <Text fontSize="xl" textAlign="center">
+          <Icon as={icon} color="white" fontSize="xl" mr={isOpen ? "4" : "0"} />
+          {label}
+        </Text>
+      )}
     </Flex>
   );
 };
 
-export default Sidebar;
+export default SideBar;

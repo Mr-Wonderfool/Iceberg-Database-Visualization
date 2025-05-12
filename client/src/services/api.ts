@@ -1,5 +1,6 @@
 import axios from "axios";
 import { SearchCriteria } from "../types/iceberg";
+import { LatLngBounds } from "leaflet";
 
 const BACKEND_URL = "http://localhost:8080/iceberg_api";
 
@@ -17,5 +18,19 @@ export const searchIcebergsByCriteria = async (criteria: SearchCriteria) => {
 };
 
 export const getIcebergById = async (icebergId: string) => {
-  return axios.get(`${BACKEND_URL}/iceberg/${icebergId}`)
-}
+  return axios.get(`${BACKEND_URL}/iceberg/${icebergId}`);
+};
+
+export const getIcebergByLocationBounds = async (bounds: LatLngBounds) => {
+  if (!bounds) {
+    return Promise.reject(new Error("Bounds should not be empty."));
+  }
+  return axios.get(`${BACKEND_URL}/iceberg/locations_in_bounds`, {
+    params: {
+      minLat: bounds.getSouth(),
+      maxLat: bounds.getNorth(),
+      minLon: bounds.getWest(),
+      maxLon: bounds.getEast(),
+    },
+  });
+};

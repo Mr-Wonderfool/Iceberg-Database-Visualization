@@ -43,3 +43,10 @@ export type Message = {
   msgVariant: string;
   msgVisible: boolean;
 };
+
+// for location passing between pages
+export interface LocationState {
+  iceberg_id?: string;
+  user_name?: string;
+  is_superuser?: boolean;
+}

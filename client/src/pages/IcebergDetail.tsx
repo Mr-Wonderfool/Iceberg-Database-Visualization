@@ -13,7 +13,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import Sidebar from "../components/SideBar";
+import SideBar from "../components/SideBar";
 import {
   FaCommentAlt,
   FaMapMarkerAlt,
@@ -26,6 +26,7 @@ const IcebergDetail = () => {
   const BACKEND_URL = "http://localhost:8080";
   const location = useLocation();
   const { iceberg_id, user_name, is_superuser } = location.state || {};
+  const [sideBarOpen, setSideBarOpen] = useState(true);
   const [icebergDetails, setIcebergDetails] = useState<IcebergDetails>({
     area: 0.0,
     mask: "NO_DATA",
@@ -136,7 +137,13 @@ const IcebergDetail = () => {
         height="100vh"
         top="0"
       >
-        <Sidebar username={user_name} is_superuser={is_superuser} />
+        <SideBar
+          username={user_name}
+          is_superuser={is_superuser}
+          isOpen={sideBarOpen}
+          onToggle={() => setSideBarOpen(!sideBarOpen)}
+          onNavigate={() => setSideBarOpen(false)}
+        />
       </Box>
       <Box ml="220px" p="6" w="full" bg="gray.50" minHeight="100vh">
         <VStack spacing={8} align="center">
