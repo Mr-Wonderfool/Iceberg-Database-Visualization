@@ -115,7 +115,7 @@ const IcebergDetail = () => {
   const handleCommentSubmit = () => {
     const curr_time = new Date();
     axios
-      .post(`${BACKEND_URL}/iceberg/comments`, {
+      .post(`${BACKEND_URL}/iceberg_comments/`, {
         iceberg_id: iceberg_id,
         suggestion: icebergDetails.newComment,
         user_name: user_name,
@@ -141,7 +141,7 @@ const IcebergDetail = () => {
 
   const handleCommentDeletion = (comment_id: number) => {
     axios
-      .delete(`${BACKEND_URL}/iceberg/comments/${comment_id}`)
+      .delete(`${BACKEND_URL}/iceberg_comments/${comment_id}`)
       .then(() => {
         setIcebergDetails((prevData) => ({
           ...prevData,

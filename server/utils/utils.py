@@ -1,4 +1,5 @@
 import re
+import numpy as np
 from datetime import datetime, timedelta
 
 
@@ -59,3 +60,32 @@ def dec2dms(decimal_degrees: str, is_latitude: bool) -> str:
     #     return f"{degrees} {minutes}'{seconds:.2f}\"{direction}"
 
     return f"{degrees} {minutes}'{direction}"
+
+def extrapolate_trajectory_polynomial(times_seconds, values, future_times_seconds, degree=2):
+    """
+    Extrapolates values to future_times_seconds using polynomial fitting.
+    
+    :param times_seconds: NumPy array of historical time points (in seconds, relative).
+    :param values: NumPy array of historical values (lat or lon).
+    :param future_times_seconds: NumPy array of future time points to predict (in seconds, relative to same epoch as times_seconds).
+    :param degree: Degree of the polynomial to fit.
+    :return: NumPy array of predicted values.
+    """
+    if len(times_seconds) < degree + 1:
+        # Not enough data points for the desired polynomial degree.
+        # Fallback to linear extrapolation if at least 2 points, otherwise no extrapolation.
+        if len(times_seconds) >= 2:
+            # Linear fit (degree 1)
+            coeffs = np.polyfit(times_seconds, values, 1)
+            poly_func = np.poly1d(coeffs)
+            return poly_func(future_times_seconds)
+        elif len(times_seconds) == 1: # Can't extrapolate with one point, return the point itself for all future times (static)
+             return np.full_like(future_times_seconds, values[0], dtype=float)
+        else: # No data to extrapolate from
+            return np.array([])
+
+    # Fit polynomial of the given degree
+    coeffs = np.polyfit(times_seconds, values, degree)
+    poly_func = np.poly1d(coeffs)
+    predicted_values = poly_func(future_times_seconds)
+    return predicted_values

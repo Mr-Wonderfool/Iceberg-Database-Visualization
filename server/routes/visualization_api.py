@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from sqlalchemy import func, extract, and_, case, asc
+from sqlalchemy import func, extract, and_, case, asc, literal_column
 
 from ..models import db, Iceberg, IcebergInfo
 
@@ -63,6 +63,124 @@ def get_size_distribution():
 
     except Exception as e:
         return jsonify({"error": "An error occurred fetching size distribution", "details": str(e)}), 500
+
+
+@vis_api_bp.route("/size_distribution_over_time", methods=["GET"])
+def get_size_distribution_over_time():
+    """
+    Provides data for iceberg size distribution (using area_at_record_time from IcebergInfo)
+    over time, grouped by year, for the period 2005-2015.
+    Returns data formatted for a stacked bar chart.
+    """
+    try:
+        start_year = 2005
+        end_year = 2015
+
+        bins = [0.0, 0.1, 10, 20, 30, 50, 100, 500, 1000, 3000, 5000, 7000, 10000, float("inf")]
+        bin_labels = []
+        for i in range(len(bins) - 1):
+            lower_bound = bins[i]
+            upper_bound = bins[i + 1]
+            if i == 0 and lower_bound == 0.0 and upper_bound == 0.1:  # Specific label for very small icebergs/growlers
+                bin_labels.append(f"< {upper_bound:.1f} km²")
+            elif upper_bound == float("inf"):
+                bin_labels.append(f"{lower_bound:.2f}+ km²")
+            else:
+                bin_labels.append(f"{lower_bound:.2f}-{upper_bound:.2f} km²")
+
+        conditions = []
+        # Correctly iterate up to len(bins) - 1 for conditions, as bins define intervals
+        for i in range(len(bins) - 1):
+            lower = bins[i]
+            upper = bins[i + 1]
+            label_for_condition = bin_labels[i]
+
+            if upper == float("inf"):
+                conditions.append((IcebergInfo.area_at_record_time >= lower, label_for_condition))
+            else:
+                conditions.append(
+                    (
+                        and_(IcebergInfo.area_at_record_time >= lower, IcebergInfo.area_at_record_time < upper),
+                        label_for_condition,
+                    )
+                )
+
+        area_bin_case_statement = case(*conditions, else_=literal_column("'Other'")).label("area_bin")
+
+        # Query
+        results = (
+            db.session.query(
+                extract("year", IcebergInfo.record_time).label("record_year"),
+                area_bin_case_statement,
+                func.count(IcebergInfo.record_id).label("iceberg_observation_count"),
+                # ! although we should, but counting over distinct icebergs does not work
+                # func.count(func.distinct(IcebergInfo.iceberg_id)).label("unique_iceberg_count")
+            )
+            .filter(IcebergInfo.area_at_record_time.isnot(None))  # Exclude records where area is null
+            .filter(extract("year", IcebergInfo.record_time) >= start_year)
+            .filter(extract("year", IcebergInfo.record_time) <= end_year)
+            .group_by("record_year", "area_bin")
+            .order_by("record_year", "area_bin")
+            .all()
+        )
+
+        # Structure data for ECharts (stacked bar chart)
+        data_by_year_bin = {}  # {(year, bin_label): count}
+        all_years_set = set(range(start_year, end_year + 1))
+
+        for r in results:
+            year = int(r.record_year)
+            all_years_set.add(year)
+            data_by_year_bin[(year, r.area_bin)] = r.iceberg_observation_count
+
+        sorted_years = sorted(list(all_years_set))
+
+        series_data = []
+        for bin_label in bin_labels:
+            counts_for_this_bin = []
+            for year in sorted_years:
+                counts_for_this_bin.append(data_by_year_bin.get((year, bin_label), 0))
+
+            series_data.append(
+                {
+                    "name": bin_label,
+                    "type": "bar",
+                    "stack": "total_stack",
+                    "emphasis": {"focus": "series"},
+                    "data": counts_for_this_bin,
+                }
+            )
+
+        other_counts = []
+        has_other_data = False
+        for year in sorted_years:
+            count = data_by_year_bin.get((year, "Other"), 0)
+            if count > 0:
+                has_other_data = True
+            other_counts.append(count)
+
+        if has_other_data:
+            series_data.append(
+                {
+                    "name": "Other (Uncategorized Area)",
+                    "type": "bar",
+                    "stack": "total_stack",
+                    "emphasis": {"focus": "series"},
+                    "data": other_counts,
+                }
+            )
+            if "Other (Uncategorized Area)" not in bin_labels:
+                bin_labels.append("Other (Uncategorized Area)")
+
+        response = {
+            "time_periods": [str(year) for year in sorted_years],
+            "bin_labels": bin_labels,
+            "series_data": series_data,
+        }
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({"error": "An error occurred fetching size distribution over time", "details": str(e)}), 500
 
 
 @vis_api_bp.route("/active_count_over_time", methods=["GET"])

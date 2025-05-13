@@ -13,6 +13,7 @@ import {
   BirthDeathLocationPoint,
   CorrelationDataPoint,
   SizeDistributionDataPoint,
+  SizeDistributionOverTimeData,
   TimeSeriesDataPoint,
 } from "../types/stats";
 import {
@@ -20,6 +21,7 @@ import {
   getIcebergBirthDeathData,
   getIcebergCorrelationData,
   getSizeDistribution,
+  getSizeDistributionOverTime,
 } from "../services/stats";
 import * as echarts from "echarts/core";
 import EChartWrapper, { ECOption } from "../components/charts/EChartWrapper";
@@ -29,7 +31,7 @@ import worldGeoJson from "../assets/map/world.json";
 echarts.registerMap("world", worldGeoJson as any);
 
 const DashBoard = () => {
-  // * size distribution plot
+  // * current size distribution plot
   const [isLoadingSize, setIsLoadingSize] = useState<boolean>(true);
   const [sizeDistributionData, setSizeDistributionData] = useState<
     SizeDistributionDataPoint[]
@@ -51,6 +53,10 @@ const DashBoard = () => {
   const [birthDeathData, setBirthDeathData] = useState<
     BirthDeathLocationPoint[]
   >([]);
+  // * size distribution over time to provide climate insight
+  const [isLoadingSizeTime, setIsLoadingSizeTime] = useState<boolean>(true);
+  const [sizeDistributionTimeData, setSizeDistributionTimeData] =
+    useState<SizeDistributionOverTimeData|null>(null);
 
   // auxiliary
   const location = useLocation();
@@ -115,6 +121,17 @@ const DashBoard = () => {
         console.error(err);
       } finally {
         setIsLoadingBirthDeath(false);
+      }
+
+      // * size distribution over time
+      try {
+        setIsLoadingSizeTime(true);
+        const sizeOverTimeResponse = await getSizeDistributionOverTime();
+        setSizeDistributionTimeData(sizeOverTimeResponse.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingSizeTime(false);
       }
     };
     fetchData();
@@ -333,7 +350,7 @@ const DashBoard = () => {
     xAxis: {
       type: "value",
       name: "Area (km²)",
-      nameLocation: 'middle',
+      nameLocation: "middle",
       nameGap: 30,
       nameTextStyle: { color: textColor },
       axisLabel: { color: textColor },
@@ -344,7 +361,7 @@ const DashBoard = () => {
       type: "value",
       name: "Rotational Velocity (deg/hr)",
       nameRotate: 90,
-      nameLocation: 'middle',
+      nameLocation: "middle",
       nameGap: 40,
       nameTextStyle: { color: textColor },
       axisLabel: { color: textColor },
@@ -369,7 +386,10 @@ const DashBoard = () => {
       iconStyle: { borderColor: textColor },
       right: 20,
     },
-    dataZoom: [{ type: "inside" }, { show: true, type: "slider", bottom: '10%' }],
+    dataZoom: [
+      { type: "inside" },
+      { show: true, type: "slider", bottom: "10%" },
+    ],
   };
 
   // * birth and melt place analysis
@@ -447,8 +467,94 @@ const DashBoard = () => {
       feature: { saveAsImage: {}, restore: {} },
       iconStyle: { borderColor: textColor },
       right: 20,
-      bottom: 0
+      bottom: 0,
     },
+  };
+
+  // * size distribution over time to reflect climate changes
+  const sizeDistributionOverTimeOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: "Iceberg Size Distribution Over Time (2005-2015)",
+      left: "center",
+      textStyle: { color: textColor },
+    },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params: any) => {
+        let tooltipHtml = `${params[0].name}<br/>`; // Year
+        let total = 0;
+        params.forEach((item: any) => {
+          tooltipHtml += `${item.marker} ${
+            item.seriesName
+          }: ${item.value.toLocaleString()}<br/>`;
+          if (typeof item.value === "number") {
+            total += item.value;
+          }
+        });
+        tooltipHtml += `<strong>Total: ${total.toLocaleString()}</strong>`;
+        return tooltipHtml;
+      },
+    },
+    legend: {
+      data: sizeDistributionTimeData?.bin_labels || [],
+      bottom: "7%",
+      textStyle: { color: textColor },
+      type: "scroll",
+    },
+    grid: {
+      left: "3%",
+      right: "7%",
+      bottom: "15%",
+      top: "10%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      data: sizeDistributionTimeData?.time_periods || [],
+      axisLabel: {
+        // rotate: 30,
+        color: textColor,
+      },
+      axisLine: { lineStyle: { color: axisLineColor } },
+    },
+    yAxis: {
+      type: "value",
+      name: "Number of Iceberg Observations",
+      nameTextStyle: { color: textColor, padding: [0, 0, 10, 0] },
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor }, show: true },
+      splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
+      nameRotate: 90,
+      nameGap: 30,
+      nameLocation: 'middle',
+    },
+    series: sizeDistributionTimeData?.series_data || [],
+    toolbox: {
+      feature: {
+        saveAsImage: { backgroundColor: useColorModeValue("#fff", "#333") },
+        dataZoom: { yAxisIndex: false }, // Zoom X-axis by default
+        magicType: { type: ["line", "bar", "stack"] }, // Added 'stack'
+        restore: {},
+      },
+      orient: "vertical",
+      right: 10,
+      top: "center",
+      iconStyle: { borderColor: textColor },
+    },
+    dataZoom: [
+      { type: "inside", start: 0, end: 100, xAxisIndex: [0] },
+      {
+        show: true,
+        type: "slider",
+        start: 0,
+        end: 100,
+        xAxisIndex: [0],
+        bottom: "2%",
+        height: 20,
+      },
+    ],
   };
 
   return (
@@ -503,6 +609,13 @@ const DashBoard = () => {
                 <EChartWrapper
                   option={birthDeathMapOption}
                   isLoading={isLoadingBirthDeath}
+                  style={{ height: "450px" }}
+                />
+              </GridItem>
+              <GridItem>
+                <EChartWrapper
+                  option={sizeDistributionOverTimeOption}
+                  isLoading={isLoadingSizeTime}
                   style={{ height: "450px" }}
                 />
               </GridItem>

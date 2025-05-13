@@ -21,3 +21,7 @@ export const getIcebergBirthDeathData = async () => {
 export const getIcebergTimeSeriesData = async (iceberg_id: string) => {
   return axios.get(`${BACKEND_URL}/iceberg/${iceberg_id}/timeseries`);
 }
+
+export const getSizeDistributionOverTime = async () => {
+  return axios.get(`${BACKEND_URL}/size_distribution_over_time`);
+}

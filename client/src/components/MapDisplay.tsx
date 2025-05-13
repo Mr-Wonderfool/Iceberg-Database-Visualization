@@ -6,6 +6,8 @@ import {
   Marker,
   Popup,
   useMap,
+  CircleMarker,
+  Tooltip,
 } from "react-leaflet";
 import L, { LatLngExpression, Map } from "leaflet";
 import "leaflet.heat";
@@ -200,35 +202,149 @@ const MapDisplay = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapEvents onViewChange={onViewChange} />
+
         {/* Render trajectories if not showing heatmap or if they should coexist */}
         {(!heatmapData || heatmapData.length === 0) &&
           icebergs.map((iceberg) => {
-            const currLen = iceberg.trajectory.length;
-            if (currLen === 0) return null;
-            const positions: LatLngExpression[] = iceberg.trajectory.map(
-              (p) => [p.latitude, p.longitude]
-            );
-            const currPoint = iceberg.trajectory[currLen - 1];
+            // Ensure trajectory arrays exist and are not empty before processing
+            const hasHistoricalTrajectory =
+              iceberg.trajectory && iceberg.trajectory.length > 0;
+            const hasPredictedTrajectory =
+              iceberg.predicted_trajectory &&
+              iceberg.predicted_trajectory.length > 0;
+
+            if (!hasHistoricalTrajectory && !hasPredictedTrajectory)
+              return null;
+
+            const historicalPositions: LatLngExpression[] =
+              hasHistoricalTrajectory
+                ? iceberg.trajectory.map((p) => [p.latitude, p.longitude])
+                : [];
+
+            const predictedPositions: LatLngExpression[] =
+              hasPredictedTrajectory
+                ? iceberg.predicted_trajectory!.map((p) => [
+                    p.latitude,
+                    p.longitude,
+                  ]) // Use non-null assertion if hasPredictedTrajectory is true
+                : [];
+
+            const lastHistoricalPoint = hasHistoricalTrajectory
+              ? iceberg.trajectory[iceberg.trajectory.length - 1]
+              : null;
+
             return (
               <React.Fragment key={iceberg.id}>
-                <Polyline
-                  pathOptions={{ color: "blue", weight: 5 }} // Kept your styling
-                  positions={positions}
-                />
-                {currPoint && (
-                  <Marker position={[currPoint.latitude, currPoint.longitude]}>
+                {hasHistoricalTrajectory && (
+                  <Polyline
+                    pathOptions={{
+                      color: "cornflowerblue",
+                      weight: 3,
+                      opacity: 0.7,
+                    }}
+                    positions={historicalPositions}
+                  />
+                )}
+
+                {/* Circle Markers for each Historical Point with Tooltip on Hover */}
+                {iceberg.trajectory?.map((p, index) => (
+                  <CircleMarker
+                    key={`hist-${iceberg.id}-${index}`}
+                    center={[p.latitude, p.longitude]}
+                    pathOptions={{
+                      color: "cornflowerblue",
+                      fillColor: "blue",
+                      fillOpacity: 0.7,
+                      stroke: true,
+                      weight: 1,
+                    }}
+                    radius={5}
+                  >
+                    <Tooltip direction="top" offset={[0, -5]}>
+                      <b>Historical Point</b>
+                      <br />
+                      Lat: {p.latitude.toFixed(3)}
+                      <br />
+                      Lon: {p.longitude.toFixed(3)}
+                      <br />
+                      Time: {new Date(p.record_time).toLocaleString()}
+                    </Tooltip>
+                  </CircleMarker>
+                ))}
+
+                {/* Predicted Trajectory Line (Dashed) */}
+                {hasPredictedTrajectory && (
+                  <Polyline
+                    pathOptions={{
+                      color: "orangered", // Different color for prediction
+                      weight: 2, // Thinner than historical
+                      opacity: 0.8,
+                      dashArray: "8, 8", // Dashed line
+                    }}
+                    positions={
+                      lastHistoricalPoint // Connect from last known historical point
+                        ? [
+                            [
+                              lastHistoricalPoint.latitude,
+                              lastHistoricalPoint.longitude,
+                            ],
+                            ...predictedPositions,
+                          ]
+                        : predictedPositions
+                    }
+                  />
+                )}
+
+                {/* Markers (Circles) for Predicted Points with Popup */}
+                {iceberg.predicted_trajectory?.map((p, index) => (
+                  <CircleMarker
+                    key={`pred-${iceberg.id}-${index}`}
+                    center={[p.latitude, p.longitude]}
+                    pathOptions={{
+                      color: "red",
+                      fillColor: "orangered",
+                      fillOpacity: 0.7,
+                      stroke: true,
+                      weight: 1,
+                    }}
+                    radius={4}
+                  >
                     <Popup>
-                      <b>Iceberg ID: {iceberg.id}</b> <br />
+                      <b>Predicted Point for {iceberg.id}</b> <br />
+                      Lat: {p.latitude.toFixed(3)}
+                      <br />
+                      Lon: {p.longitude.toFixed(3)} <br />
+                      Time: {new Date(p.record_time).toLocaleString()}
+                    </Popup>
+                  </CircleMarker>
+                ))}
+
+                {/* Marker for the Last Known Historical Point (Current Position) */}
+                {lastHistoricalPoint && (
+                  <Marker
+                    position={[
+                      lastHistoricalPoint.latitude,
+                      lastHistoricalPoint.longitude,
+                    ]}
+                  >
+                    <Popup>
+                      <b>Iceberg ID: {iceberg.id} (Current)</b> <br />
                       Area: {iceberg.area?.toFixed(2)} km² <br />
-                      Latest Latitude: {currPoint.latitude.toFixed(2)} <br />
-                      Latest Longitude: {currPoint.longitude.toFixed(2)} <br />
-                      Time: {new Date(currPoint.record_time).toLocaleString()}
+                      Lat: {lastHistoricalPoint.latitude.toFixed(3)}
+                      <br />
+                      Lon: {lastHistoricalPoint.longitude.toFixed(3)} <br />
+                      Time:{" "}
+                      {new Date(
+                        lastHistoricalPoint.record_time
+                      ).toLocaleString()}
                     </Popup>
                   </Marker>
                 )}
               </React.Fragment>
             );
           })}
+
+        {/* Heatmap Layer */}
         {mapInstance && heatmapData && heatmapData.length > 0 && (
           <HeatmapLayerComponent heatmapData={heatmapData} />
         )}

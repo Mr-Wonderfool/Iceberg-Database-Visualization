@@ -11,6 +11,7 @@ export type IcebergData = {
   area: number;
   mask?: string;
   trajectory: TrajectoryPoint[];
+  predicted_trajectory?: TrajectoryPoint[];
 };
 
 // criteria for searching icebergs
