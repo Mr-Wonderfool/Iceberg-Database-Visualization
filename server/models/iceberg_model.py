@@ -51,6 +51,8 @@ class IcebergInfo(db.Model):
     longitude = Column(Float, nullable=False)
     latitude = Column(Float, nullable=False)
     rotational_velocity = Column(Float, nullable=True)
+    # area at recording time, differentce from current area in Iceberg
+    area_at_record_time = Column(Float, nullable=True)
     # format as: yyyy-mm-dd 00:00:00
     record_time = Column(DateTime, nullable=False)
     is_prediction = Column(Boolean, nullable=False)

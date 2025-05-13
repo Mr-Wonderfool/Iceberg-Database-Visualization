@@ -22,15 +22,46 @@ const Home = () => {
   });
   const { user, setUser } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
+
   const navigate = useNavigate();
+
+  // listening on user status
+  useEffect(() => {
+    if (isLoggedIn() && user) {
+      setLoggedIn(true);
+    }
+  }, [user]);
+
   const handleCardClick = (iceberg_id: string) => {
     console.log(`Logged in: ${isLoggedIn()}, user: ${user?.username}`);
     if (isLoggedIn() && user) {
+      setLoggedIn(true);
       navigate(`/map`, {
         state: {
           iceberg_id: iceberg_id,
           user_name: user.username,
           is_superuser: user.is_superuser,
+          is_logged_in: loggedIn,
+        },
+      });
+    } else {
+      setLoggedIn(false);
+      setMessage((prevMessage) => ({
+        ...prevMessage,
+        msgVisible: true,
+      }));
+    }
+  };
+
+  const handleButtonClick = (iceberg_id: string) => {
+    if (isLoggedIn() && user) {
+      navigate(`/iceberg/${iceberg_id}`, {
+        state: {
+          iceberg_id: iceberg_id,
+          user_name: user.username,
+          is_superuser: user.is_superuser,
+          is_logged_in: loggedIn,
         },
       });
     } else {
@@ -40,6 +71,7 @@ const Home = () => {
       }));
     }
   };
+
   const fetchAPI = async () => {
     const response = await axios.get(
       "http://localhost:8080/iceberg_info/new_data"
@@ -94,6 +126,7 @@ const Home = () => {
           state={{
             user_name: user?.username,
             is_superuser: user?.is_superuser,
+            is_logged_in: loggedIn,
           }}
         />
         <ToastContainer position="top-center" className="text-center">
@@ -144,6 +177,7 @@ const Home = () => {
           <IcebergInfoTable
             icebergs={filteredIcebergs}
             handleCardClick={handleCardClick}
+            handleButtonClick={handleButtonClick}
           />
         </Box>
       </Flex>

@@ -13,26 +13,28 @@ from .utils import dms2dec
 def initialize_db(data_dir, db):
     def load_basic_data():
         csv_files = [f for f in os.listdir(data_dir) if f.endswith(".csv")]
-
         for csv_file in csv_files:
             iceberg_id = os.path.splitext(csv_file)[0]
             file_path = os.path.join(data_dir, csv_file)
+            print(f"currently at: {iceberg_id}")
             with open(file_path, "r") as file:
                 reader = csv.DictReader(file)
                 rows = list(reader)
-                area = [row["size"] for row in rows if float(row["size"]) > 10.0]
-                size = 0.0 if 0 == len(area) else area[-1]
-                for row in rows[-10:]:  # ! process the last ten rows
+                area_arr = [row["size"] for row in rows if float(row["size"]) > 0.1]
+                latest_area = 0.0 if len(area_arr) == 0 else area_arr[-1]
+                for row in rows:
                     date_str = row["date"]
                     date_obj = datetime.strptime(date_str, "%Y%j")  # Convert YYYDDD format
                     latitude = float(row["lat"])
                     longitude = float(row["lon"])
+                    area = float(row["size"])
                     mask = MaskType(int(row["mask"])).name  # should convert to Enum
                     vel_angle = float(row["vel_angle"]) if row["vel_angle"] else None
                     # ! create iceberg before iceberg info
                     iceberg = Iceberg.query.filter_by(id=iceberg_id).first()
                     if not iceberg:
-                        iceberg = Iceberg(id=iceberg_id, mask=mask, area=size)
+                        # area being the newest recordings
+                        iceberg = Iceberg(id=iceberg_id, mask=mask, area=latest_area)
                         db.session.add(iceberg)
                     else:
                         iceberg.mask = mask  # update mask to align with new values
@@ -42,6 +44,7 @@ def initialize_db(data_dir, db):
                         latitude=latitude,
                         longitude=longitude,
                         rotational_velocity=vel_angle,
+                        area_at_record_time=area if area > 0 else None,
                         record_time=date_obj,
                         is_prediction=False,
                     )

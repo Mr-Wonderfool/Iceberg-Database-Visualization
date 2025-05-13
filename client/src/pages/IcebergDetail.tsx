@@ -7,13 +7,26 @@ import {
   Flex,
   Icon,
   IconButton,
-  Image,
   Input,
-  Stack,
   Text,
+  useColorModeValue,
   VStack,
+  Grid,
+  GridItem,
+  Heading,
+  Divider,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  Tag,
+  Card,
+  CardBody,
+  CardHeader,
+  CardFooter,
+  Avatar,
 } from "@chakra-ui/react";
-import SideBar from "../components/SideBar";
+import SideBar, { closeWidth, openWidth } from "../components/SideBar";
 import {
   FaCommentAlt,
   FaMapMarkerAlt,
@@ -21,12 +34,16 @@ import {
   FaTrash,
 } from "react-icons/fa";
 import { useLocation } from "react-router-dom";
+import { IcebergTimeSeriesPoint } from "../types/stats";
+import { getIcebergTimeSeriesData } from "../services/stats";
+import EChartWrapper, { ECOption } from "../components/charts/EChartWrapper";
 
 const IcebergDetail = () => {
   const BACKEND_URL = "http://localhost:8080";
   const location = useLocation();
-  const { iceberg_id, user_name, is_superuser } = location.state || {};
-  const [sideBarOpen, setSideBarOpen] = useState(true);
+  const { iceberg_id, user_name, is_superuser, is_logged_in } =
+    location.state || {};
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [icebergDetails, setIcebergDetails] = useState<IcebergDetails>({
     area: 0.0,
     mask: "NO_DATA",
@@ -34,25 +51,44 @@ const IcebergDetail = () => {
     newComment: "",
     trajectoryImage: "",
   });
-  useEffect(() => {
-    axios
-      .get(`${BACKEND_URL}/iceberg_info/trajectory/${iceberg_id}`, {
-        responseType: "arraybuffer",
-      })
-      .then((response) => {
-        const blob = new Blob([response.data], { type: "image/png" });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const imageBase64 = reader.result as string;
 
-          setIcebergDetails((prevData) => ({
-            ...prevData,
-            trajectoryImage: imageBase64,
-          }));
-        };
-        reader.readAsDataURL(blob);
-      })
-      .catch((error) => console.error(`Error fetching data: ${error}`));
+  // for trajectory visualization
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [timeSeriesData, setTimeSeriesData] = useState<
+    IcebergTimeSeriesPoint[]
+  >([]);
+
+  const chartBackgroundColor = useColorModeValue(
+    "rgba(255,255,255,0.8)",
+    "rgba(26,32,44,0.8)"
+  );
+  const textColor = useColorModeValue("#333", "#ccc");
+  const axisLineColor = useColorModeValue("#666", "#777");
+  const renderBackground = useColorModeValue("white", "gray.700");
+  const commentColor = new Array([
+    useColorModeValue("gray.50", "gray.600"),
+    useColorModeValue("gray.500", "gray.300"),
+    useColorModeValue("gray.700", "gray.100"),
+    useColorModeValue("gray.500", "gray.400"),
+  ]);
+
+  useEffect(() => {
+    // loading detail visualization
+    if (!iceberg_id) return;
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await getIcebergTimeSeriesData(iceberg_id);
+        setTimeSeriesData(response.data.time_series);
+      } catch (err) {
+        console.error(`Error fetching data for iceberg ${iceberg_id}: ${err}`);
+        setTimeSeriesData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+
     axios
       .get(`${BACKEND_URL}/iceberg_info/basic/${iceberg_id}`)
       .then((response) => {
@@ -66,7 +102,7 @@ const IcebergDetail = () => {
       .catch((error) => console.error("Error fetching data:", error));
     // fetching existing comments
     axios
-      .get(`${BACKEND_URL}/iceberg/comments/${iceberg_id}`)
+      .get(`${BACKEND_URL}/iceberg_comments/${iceberg_id}`)
       .then((response) => {
         setIcebergDetails((prevData) => ({
           ...prevData,
@@ -126,143 +162,353 @@ const IcebergDetail = () => {
     }));
   };
 
+  // * rotational velocity
+  const rotationalVelocityOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: `Rotational Velocity`,
+      subtext: `Iceberg ${iceberg_id}`,
+      left: "center",
+      textStyle: { color: textColor },
+      subtextStyle: { color: textColor },
+    },
+    tooltip: {
+      trigger: "axis",
+      valueFormatter: (value) =>
+        value !== null ? (value as number).toFixed(2) + " deg/hr" : "N/A",
+    },
+    xAxis: {
+      type: "time",
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+    },
+    yAxis: {
+      type: "value",
+      name: "deg/hr",
+      scale: true,
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+      splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
+    },
+    series: [
+      {
+        name: "Rot. Vel.",
+        type: "line",
+        data: timeSeriesData.map((d) => [d.record_time, d.rotational_velocity]),
+        smooth: true,
+        showSymbol: false,
+        connectNulls: true,
+      },
+    ],
+    toolbox: {
+      feature: { saveAsImage: {}, dataZoom: {}, restore: {} },
+      iconStyle: { borderColor: textColor },
+      right: 20,
+    },
+    dataZoom: [{ type: "inside" }, { show: true, type: "slider", bottom: 10 }],
+  };
+  // * area change graph
+  const areaChangeOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: `Area Change`,
+      subtext: `Iceberg ${iceberg_id}`,
+      left: "center",
+      textStyle: { color: textColor },
+      subtextStyle: { color: textColor },
+    },
+    tooltip: {
+      trigger: "axis",
+      valueFormatter: (value) =>
+        value !== null ? (value as number).toFixed(2) + " km²" : "N/A",
+    },
+    xAxis: {
+      type: "time",
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+    },
+    yAxis: {
+      type: "value",
+      name: "km²",
+      scale: true,
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+      splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
+    },
+    series: [
+      {
+        name: "Area",
+        type: "line",
+        data: timeSeriesData.map((d) => [d.record_time, d.area]),
+        smooth: true,
+        showSymbol: false,
+        connectNulls: true,
+        areaStyle: { opacity: 0.3 },
+        itemStyle: { color: "#3ba272" },
+      },
+    ],
+    toolbox: {
+      feature: { saveAsImage: {}, dataZoom: {}, restore: {} },
+      iconStyle: { borderColor: textColor },
+      right: 20,
+    },
+    dataZoom: [{ type: "inside" }, { show: true, type: "slider", bottom: 10 }],
+  };
+
   return (
-    <Flex height="100vh">
-      <Box
-        width="220px"
-        bg="blue.800"
-        color="white"
-        p="4"
-        position="fixed"
-        height="100vh"
-        top="0"
+    <Flex height="100vh" width="100vw" overflow="hidden">
+      <SideBar
+        username={user_name}
+        is_superuser={is_superuser}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onNavigate={() => setSidebarOpen(false)}
+        state={{
+          user_name: user_name,
+          is_superuser: is_superuser,
+          is_logged_in: is_logged_in,
+        }}
+      />
+      <Box // Main content area
+        ml={sidebarOpen ? openWidth : closeWidth}
+        flexGrow={1}
+        p={{ base: 4, md: 6 }}
+        overflowY="auto"
+        bg={useColorModeValue("gray.50", "gray.800")}
       >
-        <SideBar
-          username={user_name}
-          is_superuser={is_superuser}
-          isOpen={sideBarOpen}
-          onToggle={() => setSideBarOpen(!sideBarOpen)}
-          onNavigate={() => setSideBarOpen(false)}
-        />
-      </Box>
-      <Box ml="220px" p="6" w="full" bg="gray.50" minHeight="100vh">
-        <VStack spacing={8} align="center">
-          <Box width="full" maxW="800px">
-            <Image
-              src={icebergDetails.trajectoryImage}
-              alt="Iceberg Trajectory"
-              objectFit="contain"
-              maxHeight="500px"
-              width="100%"
-              borderRadius="md"
-              boxShadow="lg"
-            />
-          </Box>
-          {/* Iceberg Info */}
-          <Box
-            bg="white"
-            p="6"
-            rounded="lg"
-            boxShadow="md"
-            width="full"
-            maxWidth="800px"
+        <VStack spacing={{ base: 6, md: 8 }} align="stretch">
+          <Heading
+            as="h1"
+            size="xl"
             textAlign="center"
+            color={useColorModeValue("blue.700", "blue.300")}
+            mb={4}
           >
-            <Text fontSize="2xl" fontWeight="bold" color="blue.800" mb={4}>
-              Iceberg Information
-            </Text>
-            <Flex justify="center" align="center" mb={2}>
-              <Icon as={FaMapMarkerAlt} boxSize={6} color="blue.500" mr={3} />
-              <Text fontSize="lg" fontWeight="bold" color="gray.600" mt={3}>
-                Area: {icebergDetails.area} square kilometers
-              </Text>
-            </Flex>
-            <Flex justify="center" align="center">
-              <Icon as={FaRegAddressCard} boxSize={6} color="blue.500" mr={3} />
-              <Text fontSize="lg" fontWeight="bold" color="gray.600" mt={3}>
-                Surrounding: {icebergDetails.mask}
-              </Text>
-            </Flex>
-          </Box>
+            Iceberg Detail: {iceberg_id}
+          </Heading>
 
-          {/* Comments Section */}
-          <Box
-            bg="white"
-            p="6"
-            rounded="lg"
-            boxShadow="md"
-            width="full"
-            maxWidth="800px"
-            textAlign="left"
-            mt={8}
-          >
-            <Text fontSize="xl" fontWeight="bold" mb={4} color="blue.800">
-              <Icon as={FaCommentAlt} boxSize={6} color="blue.500" mr={3} />
-              Comments
-            </Text>
-            <Box
-              maxHeight="300px"
-              overflowY="auto"
-              mb={4}
-              borderBottom="2px solid"
-              borderColor="gray.200"
-              pb={4}
+          {/* Charts Section */}
+          {timeSeriesData && timeSeriesData.length > 0 ? (
+            <Grid
+              templateColumns={{ base: "1fr", lg: "repeat(2, 1fr)" }}
+              gap={{ base: 4, md: 6 }}
             >
-              {icebergDetails.comments.slice(0, 5).map((comment, idx) => (
-                <Flex
-                  key={idx}
-                  align="start"
-                  mb={4}
-                  justifyContent="space-between"
-                >
-                  <Text fontSize="md" color="gray.700">
-                    <Icon
-                      as={FaCommentAlt}
-                      boxSize={6}
-                      color="blue.500"
-                      mr={3}
-                    />
-                    <strong>{comment.user_name}:</strong>{" "}
-                    {comment.suggestion_time.split("T")[0]} {comment.suggestion}
-                  </Text>
-                  {is_superuser && (
-                    <IconButton
-                      icon={<FaTrash />}
-                      colorScheme="red"
-                      aria-label="delete"
-                      boxSize={6}
-                      onClick={() => handleCommentDeletion(comment.comment_id)}
-                    />
-                  )}
-                </Flex>
-              ))}
-            </Box>
+              <GridItem bg={renderBackground} p={4} rounded="lg" boxShadow="md">
+                <EChartWrapper
+                  option={rotationalVelocityOption}
+                  style={{ height: "350px", width: "100%" }}
+                  isLoading={isLoading}
+                />
+              </GridItem>
+              <GridItem bg={renderBackground} p={4} rounded="lg" boxShadow="md">
+                <EChartWrapper
+                  option={areaChangeOption}
+                  style={{ height: "350px", width: "100%" }}
+                  isLoading={isLoading}
+                />
+              </GridItem>
+            </Grid>
+          ) : (
+            <Text p={5} textAlign="center" color="gray.500">
+              No time-series data available for charts.
+            </Text>
+          )}
 
-            <Stack spacing={4}>
-              <Input
-                placeholder="Add a comment..."
-                value={icebergDetails.newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key == "Enter" &&
-                  icebergDetails.newComment &&
-                  handleCommentSubmit()
-                }
-                size="lg"
-                borderColor="gray.300"
-              />
-              <Button
-                onClick={handleCommentSubmit}
-                colorScheme="blue"
-                size="lg"
+          <Divider
+            my={4}
+            borderColor={useColorModeValue("gray.300", "gray.600")}
+          />
+
+          {/* Combined Info and Comments Section */}
+          <Grid
+            templateColumns={{ base: "1fr", md: "1.5fr 2fr" }}
+            gap={{ base: 4, md: 6 }}
+            alignItems="start"
+          >
+            <GridItem>
+              <Box
+                bg={useColorModeValue("white", "gray.700")}
+                p={{ base: 4, md: 6 }}
+                rounded="lg"
+                boxShadow="md"
                 width="full"
-                isDisabled={!icebergDetails.newComment.trim()}
-                leftIcon={<Icon as={FaCommentAlt} boxSize={4} />}
               >
-                Submit Comment
-              </Button>
-            </Stack>
-          </Box>
+                <Heading
+                  as="h2"
+                  size="lg"
+                  color={useColorModeValue("blue.700", "blue.300")}
+                  mb={6}
+                  borderBottomWidth="2px"
+                  borderColor={useColorModeValue("gray.200", "gray.600")}
+                  pb={2}
+                >
+                  <Icon as={FaRegAddressCard} mr={3} verticalAlign="middle" />
+                  Iceberg Snapshot
+                </Heading>
+                <VStack spacing={5} align="stretch">
+                  <Stat>
+                    <StatLabel
+                      display="flex"
+                      alignItems="center"
+                      color={useColorModeValue("gray.600", "gray.400")}
+                    >
+                      <Icon as={FaMapMarkerAlt} mr={2} color="blue.500" />
+                      Area
+                    </StatLabel>
+
+                    <StatNumber fontSize="2xl" color={textColor}>
+                      {icebergDetails.area > 0
+                        ? icebergDetails.area.toLocaleString()
+                        : "Unobserved"}{" "}
+                      km²
+                    </StatNumber>
+                    <StatHelpText>
+                      Last updated: {new Date().toLocaleDateString()}
+                    </StatHelpText>
+                  </Stat>
+
+                  <Stat>
+                    <StatLabel
+                      display="flex"
+                      alignItems="center"
+                      color={useColorModeValue("gray.600", "gray.400")}
+                    >
+                      <Icon as={FaRegAddressCard} mr={2} color="green.500" />
+                      Sea Ice / Mask Condition
+                    </StatLabel>
+                    <StatNumber fontSize="xl">
+                      <Tag
+                        size="lg"
+                        colorScheme={
+                          icebergDetails.mask === "NO_DATA" ? "gray" : "teal"
+                        }
+                        variant="solid"
+                      >
+                        {icebergDetails.mask || "N/A"}
+                      </Tag>
+                    </StatNumber>
+                  </Stat>
+                </VStack>
+              </Box>
+            </GridItem>
+
+            {/* Comments Section */}
+            <GridItem>
+              <Box
+                bg={useColorModeValue("white", "gray.700")}
+                p={{ base: 4, md: 6 }}
+                rounded="lg"
+                boxShadow="md"
+                width="full"
+              >
+                <Heading
+                  as="h2"
+                  size="lg"
+                  color={useColorModeValue("blue.700", "blue.300")}
+                  mb={6}
+                  borderBottomWidth="2px"
+                  borderColor={useColorModeValue("gray.200", "gray.600")}
+                  pb={2}
+                >
+                  <Icon as={FaCommentAlt} mr={3} verticalAlign="middle" />
+                  Discussion & Notes
+                </Heading>
+                <Box maxHeight="350px" overflowY="auto" mb={6} pr={2}>
+                  {icebergDetails.comments &&
+                  icebergDetails.comments.length > 0 ? (
+                    icebergDetails.comments
+                      .slice()
+                      .reverse()
+                      .map(
+                        (
+                          comment // Show newest first
+                        ) => (
+                          <Card
+                            key={comment.comment_id}
+                            mb={4}
+                            variant="outline"
+                            bg={commentColor[0]}
+                          >
+                            <CardHeader pb={2}>
+                              <Flex justify="space-between" align="center">
+                                <Flex align="center">
+                                  <Avatar
+                                    name={comment.user_name}
+                                    size="sm"
+                                    mr={3}
+                                  />
+                                  <Text
+                                    fontSize="md"
+                                    fontWeight="bold"
+                                    color={textColor}
+                                  >
+                                    {comment.user_name}
+                                  </Text>
+                                </Flex>
+                                <Text fontSize="xs" color={commentColor[1]}>
+                                  {new Date(
+                                    comment.suggestion_time
+                                  ).toLocaleString()}
+                                </Text>
+                              </Flex>
+                            </CardHeader>
+                            <CardBody pt={0} pb={2}>
+                              <Text fontSize="sm" color={commentColor[2]}>
+                                {comment.suggestion}
+                              </Text>
+                            </CardBody>
+                            {is_superuser && (
+                              <CardFooter pt={1} justifyContent="flex-end">
+                                <IconButton
+                                  size="sm"
+                                  variant="ghost"
+                                  icon={<FaTrash />}
+                                  colorScheme="red"
+                                  aria-label="Delete comment"
+                                  onClick={() =>
+                                    handleCommentDeletion(comment.comment_id)
+                                  }
+                                />
+                              </CardFooter>
+                            )}
+                          </Card>
+                        )
+                      )
+                  ) : (
+                    <Text color={commentColor[3]} fontStyle="italic">
+                      No comments yet.
+                    </Text>
+                  )}
+                </Box>
+
+                <VStack
+                  spacing={3}
+                  as="form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (icebergDetails.newComment.trim()) handleCommentSubmit();
+                  }}
+                >
+                  <Input
+                    placeholder="Add a new note or comment..."
+                    value={icebergDetails.newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    size="md"
+                    bg={useColorModeValue("white", "gray.800")}
+                  />
+                  <Button
+                    type="submit"
+                    colorScheme="blue"
+                    width="full"
+                    isDisabled={!icebergDetails.newComment.trim()}
+                    leftIcon={<Icon as={FaCommentAlt} />}
+                  >
+                    Submit Note
+                  </Button>
+                </VStack>
+              </Box>
+            </GridItem>
+          </Grid>
         </VStack>
       </Box>
     </Flex>

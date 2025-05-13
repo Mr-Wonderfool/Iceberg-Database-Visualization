@@ -8,7 +8,7 @@ from server.routes.auth import auth_bp
 from server.utils.load_data import initialize_db, get_new_data
 from server.config import JWT_SECRET_KEY, SQLALCHEMY_DATABASE_URI
 from server.models import db
-from server.routes import auth_bp, comment_bp, iceberg_info_bp, iceberg_api_bp
+from server.routes import auth_bp, comment_bp, iceberg_info_bp, iceberg_api_bp, vis_api_bp
 
 matplotlib.use("Agg")
 
@@ -22,7 +22,8 @@ JWTManager(app)
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(iceberg_info_bp, url_prefix="/iceberg_info")
 app.register_blueprint(iceberg_api_bp, url_prefix="/iceberg_api")
-app.register_blueprint(comment_bp, url_prefix="/iceberg")
+app.register_blueprint(comment_bp, url_prefix="/iceberg_comments")
+app.register_blueprint(vis_api_bp, url_prefix="/stats")
 
 
 def _initialize_database(data_dir):
@@ -39,7 +40,7 @@ def _get_new_data(data_dir):
 
 
 if __name__ == "__main__":
-    # # currently not all data is used for initialization
+    # ! do not reload the database after initialization
     # _initialize_database(data_dir="../data/data")
     # # optionally scrape new data from web page
     # _get_new_data(data_dir="../data/data")

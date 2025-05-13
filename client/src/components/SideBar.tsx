@@ -3,6 +3,7 @@ import { FaSnowflake, FaUserCog, FaUsers, FaBars } from "react-icons/fa";
 import { GiIcebergs } from "react-icons/gi";
 import { IconType } from "react-icons/lib";
 import { FaMapLocationDot } from "react-icons/fa6";
+import { MdOutlineDashboard } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { LocationState } from "../types/types";
 
@@ -81,6 +82,14 @@ const SideBar = ({
                 onClick={() => onButtonClick("/map")}
                 isOpen={isOpen}
               />
+              {/* dashboard page for visualization */}
+              <SidebarItem
+                icon={MdOutlineDashboard}
+                label="DashBoard"
+                onClick={() => onButtonClick("/dashboard")}
+                isOpen={isOpen}
+              />
+
               <SidebarItem
                 icon={FaUsers}
                 label="User Settings"

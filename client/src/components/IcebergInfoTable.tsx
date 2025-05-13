@@ -12,9 +12,14 @@ import { FaRegClock, FaMapMarkerAlt } from "react-icons/fa";
 interface IcebergInfoProps {
   icebergs: IcebergInfo[];
   handleCardClick: (iceberg_id: string) => void;
+  handleButtonClick: (iceberg_id: string) => void;
 }
 // display set of icebergs
-const IcebergInfoTable = ({ icebergs, handleCardClick }: IcebergInfoProps) => {
+const IcebergInfoTable = ({
+  icebergs,
+  handleCardClick,
+  handleButtonClick,
+}: IcebergInfoProps) => {
   const displayDirection = useBreakpointValue<"row" | "column">({
     base: "column",
     md: "row",
@@ -32,7 +37,6 @@ const IcebergInfoTable = ({ icebergs, handleCardClick }: IcebergInfoProps) => {
         transform: "scale(1.02)",
         transition: "all 0.2s",
       }}
-      onClick={() => handleCardClick(iceberg.iceberg_id)}
     >
       <Flex align="center" mb={3} justify="space-between">
         <Flex align="center" direction="row">
@@ -59,7 +63,19 @@ const IcebergInfoTable = ({ icebergs, handleCardClick }: IcebergInfoProps) => {
           </Text>
         </Flex>
       </Flex>
-      <Button colorScheme="blue" size="sm" onClick={() => handleCardClick(iceberg.iceberg_id)}>
+      <Button
+        colorScheme="green"
+        size="sm"
+        onClick={() => handleCardClick(iceberg.iceberg_id)}
+      >
+        Visualize on Map
+      </Button>
+      {"  "}
+      <Button
+        colorScheme="blue"
+        size="sm"
+        onClick={() => handleButtonClick(iceberg.iceberg_id)}
+      >
         View Details
       </Button>
     </Box>

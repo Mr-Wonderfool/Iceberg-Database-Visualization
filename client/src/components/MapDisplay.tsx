@@ -21,11 +21,20 @@ interface MapDisplayProps {
 }
 
 const HeatmapLegend = () => {
+  // for more data
   const gradient = {
-    0.6: "rgba(255, 81, 89, 0.85)",
-    0.8: "rgba(255, 0, 0, 0.9)",
-    1.0: "rgba(200, 0, 0, 1.0)",
+    0.4: "rgba(255, 255, 150, 0.5)", // Lighter Yellow (more transparent for low density)
+    0.6: "rgba(255, 180, 0, 0.65)", // Yellow-Orange
+    0.8: "rgba(255, 120, 0, 0.8)", // Orange-Red
+    0.95: "rgba(255, 60, 0, 0.9)", // Red
+    1.0: "rgba(200, 0, 0, 1.0)", // Darker Red / Crimson (fully opaque for hotspots)
   };
+
+  // const gradient = {
+  //   0.6: "rgba(255, 81, 89, 0.85)",
+  //   0.8: "rgba(255, 0, 0, 0.9)",
+  //   1.0: "rgba(200, 0, 0, 1.0)",
+  // };
 
   // Create a linear gradient string for CSS background
   const gradientStops = Object.entries(gradient)
@@ -98,14 +107,22 @@ const HeatmapLayerComponent: React.FC<{ heatmapData: HeatmapPoint[] }> = ({
     } else {
       // Create new heatmap layer
       heatLayerRef.current = L.heatLayer(typedHeatmapData, {
-        radius: 25,
-        blur: 5,
+        radius: 30,
+        blur: 15,
         maxZoom: 18,
         max: 1.0,
+        // gradient: {
+        //   0.6: "rgba(255, 81, 89, 0.85)",
+        //   0.8: "rgba(255, 0, 0, 0.9)",
+        //   1.0: "rgba(200, 0, 0, 1.0)",
+        // },
+        // for more data
         gradient: {
-          0.6: "rgba(255, 81, 89, 0.85)",
-          0.8: "rgba(255, 0, 0, 0.9)",
-          1.0: "rgba(200, 0, 0, 1.0)",
+          0.4: "rgba(255, 255, 150, 0.5)", // Lighter Yellow (more transparent for low density)
+          0.6: "rgba(255, 180, 0, 0.65)", // Yellow-Orange
+          0.8: "rgba(255, 120, 0, 0.8)", // Orange-Red
+          0.95: "rgba(255, 60, 0, 0.9)", // Red
+          1.0: "rgba(200, 0, 0, 1.0)", // Darker Red / Crimson (fully opaque for hotspots)
         },
       }).addTo(map);
     }

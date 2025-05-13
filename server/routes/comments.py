@@ -3,7 +3,7 @@ from flask import jsonify, request, Blueprint
 
 from ..models import db, VesselSuggestion
 
-comment_bp = Blueprint("comments", __name__, url_prefix="/comments")
+comment_bp = Blueprint("comments", __name__)
 
 
 @comment_bp.route("/", methods=["POST"])

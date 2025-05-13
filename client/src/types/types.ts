@@ -49,4 +49,5 @@ export interface LocationState {
   iceberg_id?: string;
   user_name?: string;
   is_superuser?: boolean;
+  is_logged_in?: boolean;
 }

@@ -1,0 +1,517 @@
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import {
+  Box,
+  Flex,
+  Grid,
+  GridItem,
+  VStack,
+  useColorModeValue,
+} from "@chakra-ui/react";
+import SideBar, { openWidth, closeWidth } from "../components/SideBar";
+import {
+  BirthDeathLocationPoint,
+  CorrelationDataPoint,
+  SizeDistributionDataPoint,
+  TimeSeriesDataPoint,
+} from "../types/stats";
+import {
+  getActiveIcebergCountOverTime,
+  getIcebergBirthDeathData,
+  getIcebergCorrelationData,
+  getSizeDistribution,
+} from "../services/stats";
+import * as echarts from "echarts/core";
+import EChartWrapper, { ECOption } from "../components/charts/EChartWrapper";
+// import GeoMap from local folder
+import worldGeoJson from "../assets/map/world.json";
+
+echarts.registerMap("world", worldGeoJson as any);
+
+const DashBoard = () => {
+  // * size distribution plot
+  const [isLoadingSize, setIsLoadingSize] = useState<boolean>(true);
+  const [sizeDistributionData, setSizeDistributionData] = useState<
+    SizeDistributionDataPoint[]
+  >([]);
+  // * active counts plot
+  const [isLoadingActiveCount, setIsLoadingActiveCount] =
+    useState<boolean>(true);
+  const [activeCountData, setActiveCountData] = useState<TimeSeriesDataPoint[]>(
+    []
+  );
+  // * correlation between rotational velocity and area
+  const [isLoadingCorrelation, setIsLoadingCorrelation] =
+    useState<boolean>(true);
+  const [correlationData, setCorrelationData] = useState<
+    CorrelationDataPoint[]
+  >([]);
+  // * birth and last observation place for icebergs
+  const [isLoadingBirthDeath, setIsLoadingBirthDeath] = useState<boolean>(true);
+  const [birthDeathData, setBirthDeathData] = useState<
+    BirthDeathLocationPoint[]
+  >([]);
+
+  // auxiliary
+  const location = useLocation();
+  // user-related info for sidebar display
+  const {
+    user_name: userName,
+    is_logged_in: isLoggedIn,
+    is_superuser: isSuperUser,
+  } = location.state || {};
+  // sidebar display
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // background configurations for visualization
+  const chartBackgroundColor = useColorModeValue(
+    "rgba(255,255,255,0.8)",
+    "rgba(26,32,44,0.8)"
+  ); // white, gray.800
+  const textColor = useColorModeValue("#333", "#ccc");
+  const axisLineColor = useColorModeValue("#666", "#777");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // * size distribution plot
+      try {
+        setIsLoadingSize(true);
+        const sizeResponse = await getSizeDistribution();
+        setSizeDistributionData(sizeResponse.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingSize(false);
+      }
+
+      // * active counts over time
+      try {
+        setIsLoadingActiveCount(true);
+        const activeCountResponse = await getActiveIcebergCountOverTime();
+        setActiveCountData(activeCountResponse.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingActiveCount(false);
+      }
+
+      // * correlation between rot_vel and area
+      try {
+        setIsLoadingCorrelation(true);
+        const corrResponse = await getIcebergCorrelationData();
+        setCorrelationData(corrResponse.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingCorrelation(false);
+      }
+
+      // * birth and melt patterns
+      try {
+        setIsLoadingBirthDeath(true);
+        const birthResponse = await getIcebergBirthDeathData();
+        setBirthDeathData(birthResponse.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingBirthDeath(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // * size distribution plot
+  const sizeDistributionOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: "Iceberg Size Distribution",
+      left: "center",
+      textStyle: { color: textColor },
+      bottom: 0,
+    },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+    },
+    grid: {
+      left: "8%",
+      right: "8%",
+      bottom: "25%",
+      top: "10%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      data: sizeDistributionData.map((item) => item.name),
+      axisLabel: {
+        rotate: 30,
+        color: textColor,
+      },
+      axisLine: { lineStyle: { color: axisLineColor } },
+    },
+    yAxis: {
+      type: "value",
+      name: "Number of Icebergs",
+      nameTextStyle: { color: textColor, padding: [0, 0, 0, 30] },
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+      splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
+      nameRotate: 90,
+      nameLocation: "middle",
+      nameGap: 30,
+    },
+    series: [
+      {
+        name: "Iceberg Count",
+        type: "bar",
+        data: sizeDistributionData.map((item) => item.value),
+        itemStyle: {
+          borderRadius: [5, 5, 0, 0], // Rounded top corners for bars
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "#83bff6" },
+            { offset: 0.5, color: "#188df0" },
+            { offset: 1, color: "#188df0" },
+          ]),
+        },
+        emphasis: {
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: "#2378f7" },
+              { offset: 0.7, color: "#2378f7" },
+              { offset: 1, color: "#83bff6" },
+            ]),
+          },
+        },
+        animationDelay: (idx: number) => idx * 10,
+      },
+    ],
+    toolbox: {
+      feature: {
+        saveAsImage: {
+          title: "Save",
+          backgroundColor: useColorModeValue("#fff", "#333"),
+        },
+        dataZoom: { title: { zoom: "Zoom", back: "Reset Zoom" } },
+        magicType: {
+          type: ["line", "bar"],
+          title: { line: "Line", bar: "Bar" },
+        },
+        restore: { title: "Restore" },
+      },
+      iconStyle: { borderColor: textColor },
+    },
+    dataZoom: [
+      { type: "inside", start: 0, end: 100 },
+      { show: true, type: "slider", start: 0, end: 100, bottom: "15%" },
+    ],
+    animationEasing: "elasticOut",
+    animationDelayUpdate: (idx: number) => idx * 5,
+  };
+
+  // * active counts over time plot
+  const activeCountOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: "Monthly Active Icebergs",
+      left: "center",
+      bottom: 0,
+      textStyle: { color: textColor },
+    },
+    tooltip: {
+      trigger: "axis",
+      formatter: (params) => {
+        const param = Array.isArray(params) ? params[0] : params;
+        return `Date: ${param.name}<br />Active Icebergs: ${param.value}`;
+      },
+    },
+    grid: {
+      left: "8%",
+      right: "8%",
+      bottom: "25%",
+      top: "10%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: activeCountData.map((item) => item.time),
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+    },
+    yAxis: {
+      type: "value",
+      name: "Number of Active Icebergs",
+      nameTextStyle: { color: textColor },
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+      splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
+      nameRotate: 90,
+      nameLocation: "middle",
+      nameGap: 30,
+    },
+    series: [
+      {
+        name: "Active Icebergs",
+        type: "line",
+        data: activeCountData.map((item) => item.value),
+        smooth: 0.3,
+        symbol: "circle",
+        symbolSize: 8,
+        itemStyle: { color: "#5470c6" },
+        lineStyle: { width: 3 },
+        areaStyle: {
+          // Fancy gradient fill under the line
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            {
+              offset: 0,
+              color: "rgba(84, 112, 198, 0.5)",
+            },
+            {
+              offset: 1,
+              color: "rgba(84, 112, 198, 0)",
+            },
+          ]),
+        },
+        emphasis: {
+          focus: "series",
+          itemStyle: {
+            borderWidth: 2,
+            borderColor: "#fff",
+          },
+        },
+      },
+    ],
+    toolbox: {
+      feature: {
+        saveAsImage: {
+          title: "Save",
+          backgroundColor: useColorModeValue("#fff", "#333"),
+        },
+        dataZoom: { title: { zoom: "Zoom", back: "Reset Zoom" } },
+        magicType: {
+          type: ["line", "bar", "stack"],
+          title: { line: "Line", bar: "Bar", stack: "Stack" },
+        },
+        restore: { title: "Restore" },
+      },
+      iconStyle: { borderColor: textColor },
+    },
+    dataZoom: [
+      { type: "inside", start: 0, end: 100 },
+      { show: true, type: "slider", start: 0, end: 100, bottom: "15%" },
+    ],
+  };
+
+  // * correlation plot for rot_vel and area
+  const correlationPlotOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: "Iceberg Area vs. Rotational Velocity",
+      left: "center",
+      bottom: 0,
+      textStyle: { color: textColor },
+    },
+    tooltip: {
+      trigger: "item",
+      formatter: (params: any) => {
+        return `ID: ${params.data[2]}<br/>Area: ${
+          params.data[0]
+        } km²<br/>Rot. Vel.: ${
+          params.data[1] !== null
+            ? params.data[1].toFixed(2) + " deg/hr"
+            : "N/A"
+        }`;
+      },
+    },
+    grid: {
+      left: "8%",
+      right: "8%",
+      bottom: "25%",
+      top: "10%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "value",
+      name: "Area (km²)",
+      nameLocation: 'middle',
+      nameGap: 30,
+      nameTextStyle: { color: textColor },
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+      splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
+    },
+    yAxis: {
+      type: "value",
+      name: "Rotational Velocity (deg/hr)",
+      nameRotate: 90,
+      nameLocation: 'middle',
+      nameGap: 40,
+      nameTextStyle: { color: textColor },
+      axisLabel: { color: textColor },
+      axisLine: { lineStyle: { color: axisLineColor } },
+      splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
+    },
+    series: [
+      {
+        name: "Icebergs",
+        type: "scatter",
+        symbolSize: 10,
+        data: correlationData.map((item) => [
+          item.area,
+          item.rotationalVelocity,
+          item.id,
+        ]),
+        itemStyle: { color: "#fc8251" },
+      },
+    ],
+    toolbox: {
+      feature: { saveAsImage: {}, dataZoom: {} },
+      iconStyle: { borderColor: textColor },
+      right: 20,
+    },
+    dataZoom: [{ type: "inside" }, { show: true, type: "slider", bottom: '10%' }],
+  };
+
+  // * birth and melt place analysis
+  const birthDeathMapOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: "Iceberg Birth and Melt Hotspots",
+      left: "center",
+      textStyle: { color: textColor },
+    },
+    tooltip: {
+      trigger: "item",
+      formatter: (params: any) => {
+        return `${params.marker} ${params.name}<br/>Lon: ${
+          params.value[0] ? params.value[0].toFixed(2) : "N/A"
+        }, Lat: ${
+          params.value[1] ? params.value[1].toFixed(2) : "N/A"
+        }<br/>Time: ${new Date(params.data.record_time).toLocaleDateString()}`;
+      },
+    },
+    geo: {
+      map: "world",
+      roam: true,
+      itemStyle: {
+        areaColor: useColorModeValue("#e0e0e0", "#323c48"),
+        borderColor: useColorModeValue("#ccc", "#444"),
+      },
+      emphasis: {
+        itemStyle: { areaColor: useColorModeValue("#d4d4d4", "#2a333d") },
+      },
+      label: { show: false },
+      center: [-45, -60],
+      zoom: 2.5,
+    },
+    legend: {
+      data: ["Birth Locations", "Melt Locations"],
+      orient: "vertical",
+      left: "left",
+      top: "bottom",
+      textStyle: { color: textColor },
+    },
+    series: [
+      {
+        name: "Birth Locations",
+        type: "effectScatter",
+        coordinateSystem: "geo",
+        data: birthDeathData
+          .filter((p) => p.type === "birth")
+          .map((p) => ({
+            name: p.name,
+            value: [p.longitude, p.latitude, 1],
+            record_time: p.record_time,
+          })),
+        symbolSize: 10,
+        itemStyle: { color: "#4ade80" },
+        rippleEffect: { brushType: "stroke" },
+      },
+      {
+        name: "Melt Locations",
+        type: "effectScatter",
+        coordinateSystem: "geo",
+        data: birthDeathData
+          .filter((p) => p.type === "death")
+          .map((p) => ({
+            name: p.name,
+            value: [p.longitude, p.latitude, 1],
+            record_time: p.record_time,
+          })),
+        symbolSize: 10,
+        itemStyle: { color: "#f87171" },
+        rippleEffect: { brushType: "stroke" },
+      },
+    ],
+    toolbox: {
+      feature: { saveAsImage: {}, restore: {} },
+      iconStyle: { borderColor: textColor },
+      right: 20,
+      bottom: 0
+    },
+  };
+
+  return (
+    <>
+      <Flex height="100vh" width="100vw" overflow="hidden">
+        <SideBar
+          username={userName}
+          is_superuser={isSuperUser}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onNavigate={() => setSidebarOpen(false)}
+          state={{
+            user_name: userName,
+            is_superuser: isSuperUser,
+            is_logged_in: isLoggedIn,
+          }}
+        />
+        <Box
+          ml={sidebarOpen ? openWidth : closeWidth}
+          flexGrow={1}
+          p={6}
+          overflowY="auto"
+          bg={useColorModeValue("gray.50", "gray.900")}
+        >
+          <VStack spacing={8} align="stretch">
+            <Grid
+              templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
+              gap={6}
+            >
+              <GridItem>
+                <EChartWrapper
+                  option={sizeDistributionOption}
+                  isLoading={isLoadingSize}
+                  style={{ height: "450px" }}
+                />
+              </GridItem>
+              <GridItem>
+                <EChartWrapper
+                  option={activeCountOption}
+                  isLoading={isLoadingActiveCount}
+                  style={{ height: "450px" }}
+                />
+              </GridItem>
+              <GridItem>
+                <EChartWrapper
+                  option={correlationPlotOption}
+                  isLoading={isLoadingCorrelation}
+                  style={{ height: "450px" }}
+                />
+              </GridItem>
+              <GridItem>
+                <EChartWrapper
+                  option={birthDeathMapOption}
+                  isLoading={isLoadingBirthDeath}
+                  style={{ height: "450px" }}
+                />
+              </GridItem>
+            </Grid>
+          </VStack>
+        </Box>
+      </Flex>
+    </>
+  );
+};
+
+export default DashBoard;

@@ -11,7 +11,7 @@ import {
   IconButton,
 } from "@chakra-ui/react";
 import { LatLngExpression, Map as LeafletMapInstance } from "leaflet";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { FaMapMarkedAlt, FaTimesCircle, FaBroom } from "react-icons/fa";
 import SideBar, { openWidth, closeWidth } from "../components/SideBar";
 import MapDisplay from "../components/MapDisplay";
@@ -28,15 +28,16 @@ const MapVis = () => {
   const [mapZoom, setMapZoom] = useState<number>(3); // Start more zoomed out
   const [pageError, setPageError] = useState<string | null>(null);
 
-  const [isSingleIcebergView, setIsSingleIcebergView] =
-    useState<boolean>(true);
+  const [isSingleIcebergView, setIsSingleIcebergView] = useState<boolean>(true);
   const [focusedIcebergId, setFocusedIcebergId] = useState<string | null>(null);
 
   const toast = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // user-related info for sidebar display
   const userName = location.state.user_name;
+  const isLoggedIn = location.state.is_logged_in;
   const isSuperUser = (location.state as LocationState)?.is_superuser;
   // sidebar display
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -44,7 +45,7 @@ const MapVis = () => {
   const mapRef = useRef<LeafletMapInstance | null>(null);
 
   // Function to reset view to heatmap mode (or initial state)
-  const switchToHeatmapMode = useCallback(() => {
+  const switchToHeatmapMode = useCallback((clearLocationState: boolean) => {
     setIsSingleIcebergView(false);
     setFocusedIcebergId(null);
     setDisplayedIcebergs([]); // Clear individual trajectories
@@ -52,7 +53,11 @@ const MapVis = () => {
     setMapCenter([-65, -50]);
     setMapZoom(3);
     setPageError(null);
-  }, []);
+    if (clearLocationState) {
+      // clear the iceberg id in location to avoid re-rendering
+      navigate(location.pathname, {replace: true, state: {...location.state, iceberg_id: undefined}})
+    }
+  }, [navigate, location.pathname, location.state]);
 
   const focusOnIceberg = useCallback(
     (iceberg: IcebergData) => {
@@ -110,12 +115,12 @@ const MapVis = () => {
             isClosable: true,
           });
           setPageError(errorMsg);
-          switchToHeatmapMode();
+          switchToHeatmapMode(true);
         })
         .finally(() => setIsLoading(false));
     } else {
       if (isSingleIcebergView) {
-        switchToHeatmapMode();
+        switchToHeatmapMode(false);
       }
     }
   }, [
@@ -141,7 +146,7 @@ const MapVis = () => {
     setPageError(null);
     // Ensure not in single iceberg view when generating heatmap
     if (isSingleIcebergView) {
-      switchToHeatmapMode();
+      switchToHeatmapMode(true);
     }
     setDisplayedIcebergs([]); // Clear any individual trajectories
 
@@ -182,7 +187,7 @@ const MapVis = () => {
 
   const handleClearData = () => {
     // Clears both heatmap and single iceberg view
-    switchToHeatmapMode();
+    switchToHeatmapMode(true);
     setHeatmapData(null); // Explicitly clear heatmap
     setDisplayedIcebergs([]); // Clear any individual trajectories
     toast({
@@ -201,6 +206,11 @@ const MapVis = () => {
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         onNavigate={() => setSidebarOpen(false)}
+        state={{
+          user_name: userName,
+          is_superuser: isSuperUser,
+          is_logged_in: isLoggedIn,
+        }}
       />
 
       <Flex
@@ -229,7 +239,7 @@ const MapVis = () => {
             >
               Iceberg Map Visualization
             </Heading>
-            {!isSingleIcebergView && (
+            {isLoggedIn && !isSingleIcebergView && (
               <Button
                 onClick={handleGenerateHeatmap}
                 colorScheme="blue"
