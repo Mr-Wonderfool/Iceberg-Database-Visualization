@@ -344,6 +344,129 @@ def get_iceberg_birth_death_locations():
         return jsonify({"error": "An error occurred fetching birth/death locations", "details": str(e)}), 500
 
 
+@vis_api_bp.route("/birth_death_locations_by_year", methods=["GET"])
+def get_iceberg_birth_death_locations_by_year():
+    """
+    Provides coordinates for estimated birth and death (melt/last known) locations of icebergs.
+    Additionally, mean over latitude and longitude, and return the count of icebergs in
+    averaged positions.
+    """
+    try:
+        # Subquery for birth locations (first record time)
+        first_record_sq = (
+            db.session.query(IcebergInfo.iceberg_id, func.min(IcebergInfo.record_time).label("min_time"))
+            .group_by(IcebergInfo.iceberg_id)
+            .subquery("first_record_sq")
+        )
+
+        birth_locations = (
+            db.session.query(
+                IcebergInfo.iceberg_id,
+                IcebergInfo.latitude,
+                IcebergInfo.longitude,
+                IcebergInfo.record_time,
+            )
+            .join(
+                first_record_sq,
+                and_(
+                    IcebergInfo.iceberg_id == first_record_sq.c.iceberg_id,
+                    IcebergInfo.record_time == first_record_sq.c.min_time,
+                ),
+            )
+            .all()
+        )
+
+        births_by_year = {}
+        # Aggregate birth locations by year
+        for record in birth_locations:
+            year = record.record_time.year
+            lat = record.latitude
+            lon = record.longitude
+            if year not in births_by_year:
+                births_by_year[year] = {"lat_sum": 0.0, "lon_sum": 0.0, "count": 0, "iceberg_ids": set()}
+
+            # Only count each iceberg once per year for births, even if multiple records have exact same min_time (unlikely but possible)
+            if record.iceberg_id not in births_by_year[year]["iceberg_ids"]:
+                births_by_year[year]["lat_sum"] += lat
+                births_by_year[year]["lon_sum"] += lon
+                births_by_year[year]["count"] += 1
+                births_by_year[year]["iceberg_ids"].add(record.iceberg_id)
+
+        # Subquery for death locations (last record time)
+        last_record_sq = (
+            db.session.query(IcebergInfo.iceberg_id, func.max(IcebergInfo.record_time).label("max_time"))
+            .group_by(IcebergInfo.iceberg_id)
+            .subquery("last_record_sq")
+        )
+
+        death_locations = (
+            db.session.query(
+                IcebergInfo.iceberg_id,
+                IcebergInfo.longitude,
+                IcebergInfo.latitude,
+                IcebergInfo.record_time,  # Include record_time
+            )
+            .join(
+                last_record_sq,
+                and_(
+                    IcebergInfo.iceberg_id == last_record_sq.c.iceberg_id,
+                    IcebergInfo.record_time == last_record_sq.c.max_time,
+                ),
+            )
+            .all()
+        )
+
+        deaths_by_year = {}
+        for record in death_locations:
+            year = record.record_time.year
+            lat = float(record.latitude)
+            lon = float(record.longitude)
+
+            if year not in deaths_by_year:
+                deaths_by_year[year] = {"lat_sum": 0.0, "lon_sum": 0.0, "count": 0, "iceberg_ids": set()}
+
+            if record.iceberg_id not in deaths_by_year[year]["iceberg_ids"]:
+                deaths_by_year[year]["lat_sum"] += lat
+                deaths_by_year[year]["lon_sum"] += lon
+                deaths_by_year[year]["count"] += 1
+                deaths_by_year[year]["iceberg_ids"].add(record.iceberg_id)
+
+        response_data = []
+        for year, data in births_by_year.items():
+            if data["count"] > 0:
+                response_data.append(
+                    {
+                        "year": year,
+                        "type": "birth",
+                        "latitude": data["lat_sum"] / data["count"],
+                        "longitude": data["lon_sum"] / data["count"],
+                        "count": data["count"],
+                        "name": f"Births in {year} ({data['count']} icebergs)",
+                    }
+                )
+
+        for year, data in deaths_by_year.items():
+            if data["count"] > 0:
+                # Avoid duplicating if an iceberg has only one record (birth year == death year)
+                # ! For now, if an iceberg contributes to birth count in a year, and its ONLY record is that year,
+                # ! this logic will create both a birth and a death point.
+                response_data.append(
+                    {
+                        "year": year,
+                        "type": "death",
+                        "latitude": data["lat_sum"] / data["count"],
+                        "longitude": data["lon_sum"] / data["count"],
+                        "count": data["count"],
+                        "name": f"Last Seen in {year} ({data['count']} icebergs)",
+                    }
+                )
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        return jsonify({"error": "An error occurred fetching birth/death locations", "details": str(e)}), 500
+
+
 @vis_api_bp.route("/iceberg/<string:iceberg_id>/timeseries", methods=["GET"])
 def get_iceberg_timeseries_data(iceberg_id):
     """

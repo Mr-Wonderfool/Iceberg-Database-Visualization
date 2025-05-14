@@ -18,10 +18,14 @@ export const getIcebergBirthDeathData = async () => {
   return axios.get(`${BACKEND_URL}/birth_death_locations`);
 };
 
+export const getIcebergBirthDeathByYear = async () => {
+  return axios.get(`${BACKEND_URL}/birth_death_locations_by_year`);
+};
+
 export const getIcebergTimeSeriesData = async (iceberg_id: string) => {
   return axios.get(`${BACKEND_URL}/iceberg/${iceberg_id}/timeseries`);
-}
+};
 
 export const getSizeDistributionOverTime = async () => {
   return axios.get(`${BACKEND_URL}/size_distribution_over_time`);
-}
+};

@@ -10,6 +10,7 @@ import {
 } from "@chakra-ui/react";
 import SideBar, { openWidth, closeWidth } from "../components/SideBar";
 import {
+  AggregatedBirthDeathPoint,
   BirthDeathLocationPoint,
   CorrelationDataPoint,
   SizeDistributionDataPoint,
@@ -18,6 +19,7 @@ import {
 } from "../types/stats";
 import {
   getActiveIcebergCountOverTime,
+  getIcebergBirthDeathByYear,
   getIcebergBirthDeathData,
   getIcebergCorrelationData,
   getSizeDistribution,
@@ -53,10 +55,17 @@ const DashBoard = () => {
   const [birthDeathData, setBirthDeathData] = useState<
     BirthDeathLocationPoint[]
   >([]);
+  // * birth and death positions grouped by year
+  const [isLoadingBirthByYear, setIsLoadingBirthByYear] =
+    useState<boolean>(true);
+  const [birthByYearData, setBirthByYearData] = useState<
+    AggregatedBirthDeathPoint[]
+  >([]);
+
   // * size distribution over time to provide climate insight
   const [isLoadingSizeTime, setIsLoadingSizeTime] = useState<boolean>(true);
   const [sizeDistributionTimeData, setSizeDistributionTimeData] =
-    useState<SizeDistributionOverTimeData|null>(null);
+    useState<SizeDistributionOverTimeData | null>(null);
 
   // auxiliary
   const location = useLocation();
@@ -121,6 +130,17 @@ const DashBoard = () => {
         console.error(err);
       } finally {
         setIsLoadingBirthDeath(false);
+      }
+
+      // * birth positions aggregated by year
+      try {
+        setIsLoadingBirthByYear(true);
+        const birthByYearResponse = await getIcebergBirthDeathByYear();
+        setBirthByYearData(birthByYearResponse.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingBirthByYear(false);
       }
 
       // * size distribution over time
@@ -434,7 +454,7 @@ const DashBoard = () => {
     series: [
       {
         name: "Birth Locations",
-        type: "effectScatter",
+        type: "scatter",
         coordinateSystem: "geo",
         data: birthDeathData
           .filter((p) => p.type === "birth")
@@ -445,11 +465,11 @@ const DashBoard = () => {
           })),
         symbolSize: 10,
         itemStyle: { color: "#4ade80" },
-        rippleEffect: { brushType: "stroke" },
+        // rippleEffect: { brushType: "stroke" },
       },
       {
         name: "Melt Locations",
-        type: "effectScatter",
+        type: "scatter",
         coordinateSystem: "geo",
         data: birthDeathData
           .filter((p) => p.type === "death")
@@ -460,7 +480,126 @@ const DashBoard = () => {
           })),
         symbolSize: 10,
         itemStyle: { color: "#f87171" },
-        rippleEffect: { brushType: "stroke" },
+        // rippleEffect: { brushType: "stroke" },
+      },
+    ],
+    toolbox: {
+      feature: { saveAsImage: {}, restore: {} },
+      iconStyle: { borderColor: textColor },
+      right: 20,
+      bottom: 0,
+    },
+  };
+
+  // * birth and melt places grouped by year
+  const birthDeathByYearOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: "Iceberg Birth & Last Seen Hotspots (Yearly Aggregated)",
+      left: "center",
+      textStyle: { color: textColor },
+    },
+    tooltip: {
+      trigger: "item",
+      formatter: (params: any) => {
+        if (!params.data) return "";
+        // params.value will be [longitude, latitude, count]
+        return `<strong>${params.data.name}</strong><br/>
+                Year: ${params.data.year}<br/>
+                Avg. Lat: ${params.data.latitude?.toFixed(2)}<br/>
+                Avg. Lon: ${params.data.longitude?.toFixed(2)}<br/>
+                Icebergs: ${params.data.count}`;
+      },
+    },
+    geo: {
+      map: "world",
+      roam: true,
+      itemStyle: {
+        areaColor: useColorModeValue("#e0e0e0", "#323c48"),
+        borderColor: useColorModeValue("#ccc", "#444"),
+      },
+      emphasis: {
+        itemStyle: { areaColor: useColorModeValue("#d4d4d4", "#2a333d") },
+      },
+      label: { show: false },
+      center: [-55, -50],
+      zoom: 2.8,
+    },
+    legend: {
+      data: ["Birth Hotspots (Yearly)", "Last Seen Hotspots (Yearly)"],
+      orient: "vertical",
+      left: "left",
+      top: "bottom",
+      textStyle: { color: textColor },
+      selectedMode: "multiple",
+    },
+    visualMap: [
+      {
+        type: "continuous", // Or 'piecewise'
+        min: 0,
+        // Calculate max dynamically or set a reasonable upper bound based on expected counts
+        max: Math.max(...birthByYearData.map((p) => p.count), 100), // Example: max of counts or 100
+        dimension: 2, // The third element in 'value' array [lon, lat, count] will be mapped
+        seriesIndex: [0, 1], // Apply to both birth and death series
+        calculable: true,
+        left: "right",
+        top: "center",
+        itemWidth: 15,
+        itemHeight: 100,
+        text: ["High Count", "Low Count"],
+        textStyle: { color: textColor },
+        inRange: {
+          symbolSize: [8, 40], // Min and Max symbol sizes
+        },
+        // Handle cases where birthDeathData might be empty initially
+        controller: {
+          inRange: {
+            color:
+              birthByYearData.length > 0 ? ["#4ade80", "#f87171"] : ["#ccc"],
+          },
+        },
+      },
+    ],
+    series: [
+      {
+        name: "Birth Hotspots (Yearly)",
+        type: "effectScatter", // 'effectScatter'
+        coordinateSystem: "geo",
+        data: birthByYearData
+          .filter((p) => p.type === "birth")
+          .map((p) => ({
+            name: p.name,
+            value: [p.longitude, p.latitude, p.count],
+            // Store original data for rich tooltip
+            year: p.year,
+            type: p.type,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            count: p.count,
+          })),
+        itemStyle: { color: "#4ade80" }, // Green for birth
+        rippleEffect: { brushType: "stroke", scale: 2.5 },
+        showEffectOn: "render",
+      },
+      {
+        name: "Last Seen Hotspots (Yearly)",
+        type: "effectScatter",
+        coordinateSystem: "geo",
+        data: birthByYearData
+          .filter((p) => p.type === "death")
+          .map((p) => ({
+            name: p.name,
+            value: [p.longitude, p.latitude, p.count],
+            year: p.year,
+            type: p.type,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            count: p.count,
+          })),
+        // symbolSize is now controlled by visualMap
+        itemStyle: { color: "#f87171" }, // Red for death/last seen
+        rippleEffect: { brushType: "stroke", scale: 2.5 },
+        showEffectOn: "render",
       },
     ],
     toolbox: {
@@ -528,7 +667,7 @@ const DashBoard = () => {
       splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
       nameRotate: 90,
       nameGap: 30,
-      nameLocation: 'middle',
+      nameLocation: "middle",
     },
     series: sizeDistributionTimeData?.series_data || [],
     toolbox: {
@@ -586,8 +725,8 @@ const DashBoard = () => {
             >
               <GridItem>
                 <EChartWrapper
-                  option={sizeDistributionOption}
-                  isLoading={isLoadingSize}
+                  option={sizeDistributionOverTimeOption}
+                  isLoading={isLoadingSizeTime}
                   style={{ height: "450px" }}
                 />
               </GridItem>
@@ -614,8 +753,15 @@ const DashBoard = () => {
               </GridItem>
               <GridItem>
                 <EChartWrapper
-                  option={sizeDistributionOverTimeOption}
-                  isLoading={isLoadingSizeTime}
+                  option={sizeDistributionOption}
+                  isLoading={isLoadingSize}
+                  style={{ height: "450px" }}
+                />
+              </GridItem>
+              <GridItem>
+                <EChartWrapper
+                  option={birthDeathByYearOption}
+                  isLoading={isLoadingBirthByYear}
                   style={{ height: "450px" }}
                 />
               </GridItem>
