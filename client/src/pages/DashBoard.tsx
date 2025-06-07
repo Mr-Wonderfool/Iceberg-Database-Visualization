@@ -5,6 +5,10 @@ import {
   Flex,
   Grid,
   GridItem,
+  Heading,
+  Image,
+  Spinner,
+  Text,
   VStack,
   useColorModeValue,
 } from "@chakra-ui/react";
@@ -22,6 +26,7 @@ import {
   getIcebergBirthDeathByYear,
   getIcebergBirthDeathData,
   getIcebergCorrelationData,
+  // getPassageDensity,
   getSizeDistribution,
   getSizeDistributionOverTime,
 } from "../services/stats";
@@ -29,8 +34,20 @@ import * as echarts from "echarts/core";
 import EChartWrapper, { ECOption } from "../components/charts/EChartWrapper";
 // import GeoMap from local folder
 import worldGeoJson from "../assets/map/world.json";
+import antarcticaGeoJson from "../assets/map/antarctica.json";
+import type { FeatureCollection } from "geojson";
 
-echarts.registerMap("world", worldGeoJson as any);
+// combine world and antarctica map
+const combinedGeoJson: FeatureCollection = {
+  type: "FeatureCollection",
+  // Take all features from your world map and add the features from the Antarctica map
+  features: [
+    ...(worldGeoJson as any).features,
+    ...(antarcticaGeoJson as FeatureCollection).features,
+  ],
+};
+echarts.registerMap("world", combinedGeoJson as any);
+echarts.registerMap("antarctica", antarcticaGeoJson as any);
 
 const DashBoard = () => {
   // * current size distribution plot
@@ -66,6 +83,12 @@ const DashBoard = () => {
   const [isLoadingSizeTime, setIsLoadingSizeTime] = useState<boolean>(true);
   const [sizeDistributionTimeData, setSizeDistributionTimeData] =
     useState<SizeDistributionOverTimeData | null>(null);
+
+  // // * passage density
+  // const [densityData, setDensityData] = useState<[number, number, number][]>(
+  //   []
+  // );
+  // const [isLoadingDensity, setIsLoadingDensity] = useState<boolean>(true);
 
   // auxiliary
   const location = useLocation();
@@ -153,6 +176,17 @@ const DashBoard = () => {
       } finally {
         setIsLoadingSizeTime(false);
       }
+
+      // // * passage density
+      // try {
+      //   setIsLoadingDensity(true);
+      //   const passageDensity = await getPassageDensity();
+      //   setDensityData(passageDensity.data);
+      // } catch (err) {
+      //   console.log(err);
+      // } finally {
+      //   setIsLoadingDensity(false);
+      // }
     };
     fetchData();
   }, []);
@@ -355,7 +389,7 @@ const DashBoard = () => {
           params.data[0]
         } km²<br/>Rot. Vel.: ${
           params.data[1] !== null
-            ? params.data[1].toFixed(2) + " deg/hr"
+            ? params.data[1].toFixed(2) + " deg/day"
             : "N/A"
         }`;
       },
@@ -696,6 +730,81 @@ const DashBoard = () => {
     ],
   };
 
+  // // * passage density plot
+  // const aggregateDensityOption: ECOption = {
+  //   backgroundColor: chartBackgroundColor,
+  //   title: {
+  //     text: "Aggregate Iceberg Passage Density",
+  //     subtext: "Highlighting common counterclockwise coastal drift",
+  //     left: "center",
+  //     textStyle: { color: textColor },
+  //     subtextStyle: { color: textColor },
+  //   },
+  //   tooltip: {
+  //     trigger: "item",
+  //     formatter: (params: any) => {
+  //       if (!params.value) return "";
+  //       return `Avg. Location: (${params.value[0].toFixed(
+  //         2
+  //       )}, ${params.value[1].toFixed(2)})<br/>
+  //             Iceberg Passages: ${params.value[2]}`;
+  //     },
+  //   },
+  //   visualMap: {
+  //     min: 0,
+  //     // Calculate max dynamically from your data for best color mapping
+  //     max: Math.max(...densityData.map((item) => item[2]), 1),
+  //     calculable: true,
+  //     realtime: false,
+  //     inRange: {
+  //       // Color scheme from low to high density
+  //       color: [
+  //         "#313695",
+  //         "#4575b4",
+  //         "#74add1",
+  //         "#abd9e9",
+  //         "#e0f3f8",
+  //         "#ffffbf",
+  //         "#fee090",
+  //         "#fdae61",
+  //         "#f46d43",
+  //         "#d73027",
+  //         "#a50026",
+  //       ],
+  //     },
+  //     textStyle: { color: textColor },
+  //     left: "left",
+  //     top: "bottom",
+  //   },
+  //   geo: {
+  //     map: "antarctica", // Assumes you have registered 'world' GeoJSON
+  //     roam: true,
+  //     silent: false, // Allows tooltips on the heatmap points
+  //     layoutCenter: ["50%", "50%"],
+  //     layoutSize: "120%",
+  //     zoom: 3,
+  //     itemStyle: {
+  //       areaColor: useColorModeValue("#a6c845", "#56692d"), // A more "icy" or "land" color
+  //       borderColor: useColorModeValue("#777", "#aaa"),
+  //       borderWidth: 0.5,
+  //     },
+  //     emphasis: {
+  //       label: { show: false },
+  //       itemStyle: { areaColor: useColorModeValue("#c1e177", "#6c8038") },
+  //     },
+  //   },
+  //   series: [
+  //     {
+  //       name: "Iceberg Passage Density",
+  //       type: "heatmap",
+  //       coordinateSystem: "geo",
+  //       data: densityData, // Data from the backend API
+  //       pointSize: 5,
+  //       blurSize: 6,
+  //     },
+  //   ],
+  // };
+
   return (
     <>
       <Flex height="100vh" width="100vw" overflow="hidden">
@@ -730,6 +839,7 @@ const DashBoard = () => {
                   style={{ height: "450px" }}
                 />
               </GridItem>
+
               <GridItem>
                 <EChartWrapper
                   option={activeCountOption}
@@ -764,6 +874,33 @@ const DashBoard = () => {
                   isLoading={isLoadingBirthByYear}
                   style={{ height: "450px" }}
                 />
+              </GridItem>
+              <GridItem colSpan={{ base: 1, md: 2 }}>
+                <Box
+                  p={4}
+                  bg={useColorModeValue("white", "gray.700")}
+                  rounded="lg"
+                  boxShadow="md"
+                >
+                  <Heading as="h3" size="md" textAlign="center" mb={4}>
+                    Aggregate Iceberg Passage Density
+                  </Heading>
+                  <Text
+                    textAlign="center"
+                    fontSize="sm"
+                    color="gray.500"
+                    mb={4}
+                  >
+                    Common counterclockwise coastal drift of icebergs.
+                  </Text>
+                  <Image
+                    src={
+                      "http://localhost:8080/stats/aggregate_density_map.png"
+                    }
+                    alt="Map showing the density of iceberg passages around Antarctica"
+                    fallback={<Spinner size="xl" />}
+                  />
+                </Box>
               </GridItem>
             </Grid>
           </VStack>

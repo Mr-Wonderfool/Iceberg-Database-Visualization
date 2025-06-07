@@ -29,3 +29,7 @@ export const getIcebergTimeSeriesData = async (iceberg_id: string) => {
 export const getSizeDistributionOverTime = async () => {
   return axios.get(`${BACKEND_URL}/size_distribution_over_time`);
 };
+
+export const getPassageDensity = async () => {
+  return axios.get(`${BACKEND_URL}/aggregate_density`);
+}

@@ -33,7 +33,8 @@ def get_iceberg_locations_in_bounds():
         max_lat = float(max_lat_str)
 
         current_date = datetime.datetime.today()
-        one_year_range = current_date - relativedelta(months=12)
+        # iceberg in bounds over the last ten years
+        one_year_range = current_date - relativedelta(months=120)
         filter_date_start = datetime.datetime.combine(one_year_range, datetime.time.min)
 
         # query icebergInfo with position ranges and date range

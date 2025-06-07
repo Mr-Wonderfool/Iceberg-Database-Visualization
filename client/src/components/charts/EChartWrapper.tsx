@@ -40,7 +40,7 @@ import {
 import { CanvasRenderer } from "echarts/renderers"; // SVGRenderer might also work
 import { Box, useColorModeValue } from "@chakra-ui/react";
 
-import type { BarSeriesOption, EffectScatterSeriesOption, LineSeriesOption, ScatterSeriesOption } from 'echarts/charts';
+import type { BarSeriesOption, EffectScatterSeriesOption, HeatmapSeriesOption, LineSeriesOption, ScatterSeriesOption } from 'echarts/charts';
 import type {
   TitleComponentOption,
   TooltipComponentOption,
@@ -61,6 +61,7 @@ export type ECOption = echarts.ComposeOption<
   | LegendComponentOption
   | ToolboxComponentOption
   | DataZoomComponentOption
+  | HeatmapSeriesOption
 >;
 
 // Register the necessary ECharts components

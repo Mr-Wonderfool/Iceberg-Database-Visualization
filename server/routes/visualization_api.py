@@ -1,5 +1,15 @@
-from flask import Blueprint, jsonify
+import io
+import math
+from collections import defaultdict
+from flask import Blueprint, jsonify, Response
 from sqlalchemy import func, extract, and_, case, asc, literal_column
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 from ..models import db, Iceberg, IcebergInfo
 
@@ -513,3 +523,100 @@ def get_iceberg_timeseries_data(iceberg_id):
             jsonify({"error": f"An error occurred fetching time series for iceberg {iceberg_id}", "details": str(e)}),
             500,
         )
+
+
+@vis_api_bp.route("/aggregate_density", methods=["GET"])
+def get_aggregate_iceberg_density():
+    """
+    Calculates the density of unique iceberg passages on a grid over Antarctica.
+    """
+    try:
+        resolution = 0.25
+        grid_counts = defaultdict(set)
+        iceberg_records = db.session.query(IcebergInfo.latitude, IcebergInfo.longitude, IcebergInfo.iceberg_id).all()
+        # iceberg_records = db.session.query(IcebergInfo.latitude, IcebergInfo.longitude, IcebergInfo.iceberg_id).yield_per(1000)
+        for record in iceberg_records:
+            lat = float(record.latitude)
+            lon = float(record.longitude)
+            # Simple check to focus on the southern hemisphere polar regions
+            if lat > -40:  # Ignore points north of 40°S
+                continue
+            # Calculate which grid cell this point falls into
+            lat_idx = math.floor(lat / resolution)
+            lon_idx = math.floor(lon / resolution)
+
+            # Add the iceberg_id to the set for this grid cell
+            grid_counts[(lat_idx, lon_idx)].add(record.iceberg_id)
+
+        # Prepare data for ECharts heatmap: array of [longitude, latitude, count]
+        heatmap_data = []
+        for (lat_idx, lon_idx), iceberg_ids in grid_counts.items():
+            count = len(iceberg_ids)
+            if count > 0:  # Only include grid cells with at least one passage
+                # Use the center of the grid cell for plotting
+                center_lat = (lat_idx + 0.5) * resolution
+                center_lon = (lon_idx + 0.5) * resolution
+                heatmap_data.append([center_lon, center_lat, count])
+
+        return jsonify(heatmap_data)
+
+    except Exception as e:
+        return jsonify({"error": "An error occurred fetching aggregate density data", "details": str(e)}), 500
+
+
+@vis_api_bp.route("/aggregate_density_map.png", methods=["GET"])
+def get_aggregate_density_map():
+    """
+    Generates a static PNG image of the iceberg passage density map using a
+    South Polar Stereographic projection.
+    """
+    try:
+        resolution = 0.25
+        grid_counts = defaultdict(set)
+        iceberg_records = db.session.query(IcebergInfo.latitude, IcebergInfo.longitude, IcebergInfo.iceberg_id).all()
+        for record in iceberg_records:
+            try:
+                lat, lon = float(record.latitude), float(record.longitude)
+                if lat > -40:
+                    continue
+                lat_idx, lon_idx = math.floor(lat / resolution), math.floor(lon / resolution)
+                grid_counts[(lat_idx, lon_idx)].add(record.iceberg_id)
+            except (ValueError, TypeError):
+                continue
+
+        lons, lats, counts = [], [], []
+        for (lat_idx, lon_idx), iceberg_ids in grid_counts.items():
+            count = len(iceberg_ids)
+            if count > 0:
+                lons.append((lon_idx + 0.5) * resolution)
+                lats.append((lat_idx + 0.5) * resolution)
+                counts.append(count)
+
+        if not lons:
+            return "No data to generate map", 404
+
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(1, 1, 1, projection=ccrs.SouthPolarStereo())
+        ax.set_extent([-180, 180, -90, -50], ccrs.PlateCarree())
+
+        ax.add_feature(cfeature.OCEAN, zorder=0, facecolor="#f0f8ff")
+        ax.add_feature(cfeature.LAND, zorder=1, edgecolor="black", facecolor="#c0c0c0")
+        ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
+
+        log_norm = mcolors.LogNorm(vmin=1, vmax=max(counts))
+        sc = ax.scatter(
+            lons, lats, s=5, c=counts, cmap="YlOrRd", norm=log_norm, alpha=0.7, transform=ccrs.PlateCarree(), zorder=2
+        )
+
+        plt.colorbar(sc, ax=ax, shrink=0.7, label="Number of Iceberg Passages")
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+        buf.seek(0)
+        plt.close(fig)
+
+        return Response(buf.getvalue(), mimetype="image/png")
+
+    except Exception as e:
+        print(f"Error generating static map: {e}")
+        return jsonify({"error": "Failed to generate map image", "details": str(e)}), 500
