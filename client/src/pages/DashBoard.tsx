@@ -14,16 +14,16 @@ import {
 } from "@chakra-ui/react";
 import SideBar, { openWidth, closeWidth } from "../components/SideBar";
 import {
-  AggregatedBirthDeathPoint,
   BirthDeathLocationPoint,
   CorrelationDataPoint,
+  LocationTrendData,
   SizeDistributionDataPoint,
   SizeDistributionOverTimeData,
   TimeSeriesDataPoint,
 } from "../types/stats";
 import {
   getActiveIcebergCountOverTime,
-  getIcebergBirthDeathByYear,
+  getIcebergBirthDeathTrends,
   getIcebergBirthDeathData,
   getIcebergCorrelationData,
   // getPassageDensity,
@@ -72,12 +72,10 @@ const DashBoard = () => {
   const [birthDeathData, setBirthDeathData] = useState<
     BirthDeathLocationPoint[]
   >([]);
-  // * birth and death positions grouped by year
-  const [isLoadingBirthByYear, setIsLoadingBirthByYear] =
-    useState<boolean>(true);
-  const [birthByYearData, setBirthByYearData] = useState<
-    AggregatedBirthDeathPoint[]
-  >([]);
+  // * birth and death positions grouped by year (line plot for average location)
+  const [locationTrendData, setLocationTrendData] =
+    useState<LocationTrendData | null>(null);
+  const [isLoadingTrends, setIsLoadingTrends] = useState<boolean>(true);
 
   // * size distribution over time to provide climate insight
   const [isLoadingSizeTime, setIsLoadingSizeTime] = useState<boolean>(true);
@@ -157,13 +155,13 @@ const DashBoard = () => {
 
       // * birth positions aggregated by year
       try {
-        setIsLoadingBirthByYear(true);
-        const birthByYearResponse = await getIcebergBirthDeathByYear();
-        setBirthByYearData(birthByYearResponse.data);
+        setIsLoadingTrends(true);
+        const birthTrendResponse = await getIcebergBirthDeathTrends();
+        setLocationTrendData(birthTrendResponse.data);
       } catch (err) {
         console.error(err);
       } finally {
-        setIsLoadingBirthByYear(false);
+        setIsLoadingTrends(false);
       }
 
       // * size distribution over time
@@ -526,121 +524,180 @@ const DashBoard = () => {
   };
 
   // * birth and melt places grouped by year
-  const birthDeathByYearOption: ECOption = {
+  // --- Chart 1: Latitude Trends ---
+  const latitudeTrendOption: ECOption = {
     backgroundColor: chartBackgroundColor,
     title: {
-      text: "Iceberg Birth & Last Seen Hotspots (Yearly Aggregated)",
+      text: "Average Latitude of Iceberg Origins & Endpoints",
       left: "center",
       textStyle: { color: textColor },
     },
-    tooltip: {
-      trigger: "item",
-      formatter: (params: any) => {
-        if (!params.data) return "";
-        // params.value will be [longitude, latitude, count]
-        return `<strong>${params.data.name}</strong><br/>
-                Year: ${params.data.year}<br/>
-                Avg. Lat: ${params.data.latitude?.toFixed(2)}<br/>
-                Avg. Lon: ${params.data.longitude?.toFixed(2)}<br/>
-                Icebergs: ${params.data.count}`;
-      },
-    },
-    geo: {
-      map: "world",
-      roam: true,
-      itemStyle: {
-        areaColor: useColorModeValue("#e0e0e0", "#323c48"),
-        borderColor: useColorModeValue("#ccc", "#444"),
-      },
-      emphasis: {
-        itemStyle: { areaColor: useColorModeValue("#d4d4d4", "#2a333d") },
-      },
-      label: { show: false },
-      center: [-55, -50],
-      zoom: 2.8,
-    },
+    tooltip: { trigger: "axis" },
     legend: {
-      data: ["Birth Hotspots (Yearly)", "Last Seen Hotspots (Yearly)"],
-      orient: "vertical",
-      left: "left",
-      top: "bottom",
+      data: [
+        "Birth Latitude", 
+        "Last Seen Latitude", 
+        "Birth Trend", 
+        "Last Seen Trend"
+      ],
+      bottom: '2%',
       textStyle: { color: textColor },
-      selectedMode: "multiple",
     },
-    visualMap: [
-      {
-        type: "continuous", // Or 'piecewise'
-        min: 0,
-        // Calculate max dynamically or set a reasonable upper bound based on expected counts
-        max: Math.max(...birthByYearData.map((p) => p.count), 100), // Example: max of counts or 100
-        dimension: 2, // The third element in 'value' array [lon, lat, count] will be mapped
-        seriesIndex: [0, 1], // Apply to both birth and death series
-        calculable: true,
-        left: "right",
-        top: "center",
-        itemWidth: 15,
-        itemHeight: 100,
-        text: ["High Count", "Low Count"],
-        textStyle: { color: textColor },
-        inRange: {
-          symbolSize: [8, 40], // Min and Max symbol sizes
-        },
-        // Handle cases where birthDeathData might be empty initially
-        controller: {
-          inRange: {
-            color:
-              birthByYearData.length > 0 ? ["#4ade80", "#f87171"] : ["#ccc"],
-          },
-        },
-      },
-    ],
+    grid: { left: '3%', right: '4%', bottom: '20%', containLabel: true },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: locationTrendData?.years || [],
+      axisLabel: { color: textColor },
+    },
+    yAxis: {
+      type: "value",
+      name: "Latitude (°)",
+      axisLabel: { formatter: '{value}° S', color: textColor },
+      inverse: true,
+      nameLocation: "start",
+      max: -50,
+    },
     series: [
       {
-        name: "Birth Hotspots (Yearly)",
-        type: "effectScatter", // 'effectScatter'
-        coordinateSystem: "geo",
-        data: birthByYearData
-          .filter((p) => p.type === "birth")
-          .map((p) => ({
-            name: p.name,
-            value: [p.longitude, p.latitude, p.count],
-            // Store original data for rich tooltip
-            year: p.year,
-            type: p.type,
-            latitude: p.latitude,
-            longitude: p.longitude,
-            count: p.count,
-          })),
-        itemStyle: { color: "#4ade80" }, // Green for birth
-        rippleEffect: { brushType: "stroke", scale: 2.5 },
-        showEffectOn: "render",
+        name: "Birth Latitude",
+        type: "line",
+        smooth: true,
+        showSymbol: true,
+        symbolSize: 6,
+        data: locationTrendData?.birth_locations.latitudes || [],
+        itemStyle: { color: "#4ade80" },
       },
       {
-        name: "Last Seen Hotspots (Yearly)",
-        type: "effectScatter",
-        coordinateSystem: "geo",
-        data: birthByYearData
-          .filter((p) => p.type === "death")
-          .map((p) => ({
-            name: p.name,
-            value: [p.longitude, p.latitude, p.count],
-            year: p.year,
-            type: p.type,
-            latitude: p.latitude,
-            longitude: p.longitude,
-            count: p.count,
-          })),
-        // symbolSize is now controlled by visualMap
-        itemStyle: { color: "#f87171" }, // Red for death/last seen
-        rippleEffect: { brushType: "stroke", scale: 2.5 },
-        showEffectOn: "render",
+        name: "Last Seen Latitude",
+        type: "line",
+        smooth: true,
+        showSymbol: true,
+        symbolSize: 6,
+        data: locationTrendData?.death_locations.latitudes || [],
+        itemStyle: { color: "#f87171" },
       },
+      // --- NEW: Trend Lines ---
+      {
+        name: "Birth Trend",
+        type: "line",
+        showSymbol: false, // No symbols for trend lines
+        data: locationTrendData?.birth_locations.latitudes_trend || [],
+        lineStyle: {
+            color: "#4ade80", // Same color as data
+            width: 2,
+            type: 'dashed', // Dashed line style
+            opacity: 0.8,
+        },
+        emphasis: { disabled: true }, // Disable hover effects on the trend line
+      },
+      {
+        name: "Last Seen Trend",
+        type: "line",
+        showSymbol: false,
+        data: locationTrendData?.death_locations.latitudes_trend || [],
+        lineStyle: {
+            color: "#f87171",
+            width: 2,
+            type: 'dashed',
+            opacity: 0.8,
+        },
+        emphasis: { disabled: true },
+      }
     ],
+    dataZoom: [{ type: 'inside' }, { show: true, type: 'slider', bottom: '10%' }],
     toolbox: {
       feature: { saveAsImage: {}, restore: {} },
       iconStyle: { borderColor: textColor },
       right: 20,
-      bottom: 0,
+      top: 20,
+    },
+  };
+
+  // --- Chart 2: Longitude Trends ---
+  const longitudeTrendOption: ECOption = {
+    backgroundColor: chartBackgroundColor,
+    title: {
+      text: "Average Longitude of Iceberg Origins & Endpoints",
+      left: "center",
+      textStyle: { color: textColor },
+    },
+    tooltip: { trigger: "axis" },
+    legend: {
+      data: [
+        "Birth Longitude",
+        "Last Seen Longitude",
+        "Birth Trend",
+        "Last Seen Trend"
+      ],
+      bottom: '2%',
+      textStyle: { color: textColor },
+    },
+    grid: { left: '3%', right: '4%', bottom: '20%', containLabel: true },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: locationTrendData?.years || [],
+      axisLabel: { color: textColor },
+    },
+    yAxis: {
+      type: "value",
+      name: "Longitude (°)",
+      axisLabel: { formatter: '{value}°', color: textColor },
+    },
+    series: [
+      {
+        name: "Birth Longitude",
+        type: "line",
+        smooth: true,
+        showSymbol: true,
+        symbolSize: 6,
+        data: locationTrendData?.birth_locations.longitudes || [],
+        itemStyle: { color: "#4ade80" },
+      },
+      {
+        name: "Last Seen Longitude",
+        type: "line",
+        smooth: true,
+        showSymbol: true,
+        symbolSize: 6,
+        data: locationTrendData?.death_locations.longitudes || [],
+        itemStyle: { color: "#f87171" },
+      },
+      // --- NEW: Trend Lines ---
+      {
+        name: "Birth Trend",
+        type: "line",
+        showSymbol: false,
+        data: locationTrendData?.birth_locations.longitudes_trend || [],
+        lineStyle: {
+            color: "#4ade80",
+            width: 2,
+            type: 'dashed',
+            opacity: 0.8,
+        },
+        emphasis: { disabled: true },
+      },
+      {
+        name: "Last Seen Trend",
+        type: "line",
+        showSymbol: false,
+        data: locationTrendData?.death_locations.longitudes_trend || [],
+        lineStyle: {
+            color: "#f87171",
+            width: 2,
+            type: 'dashed',
+            opacity: 0.8,
+        },
+        emphasis: { disabled: true },
+      }
+    ],
+    dataZoom: [{ type: 'inside' }, { show: true, type: 'slider', bottom: '10%' }],
+    toolbox: {
+      feature: { saveAsImage: {}, restore: {} },
+      iconStyle: { borderColor: textColor },
+      right: 20,
+      top: 20,
     },
   };
 
@@ -870,8 +927,15 @@ const DashBoard = () => {
               </GridItem>
               <GridItem>
                 <EChartWrapper
-                  option={birthDeathByYearOption}
-                  isLoading={isLoadingBirthByYear}
+                  option={latitudeTrendOption}
+                  isLoading={isLoadingTrends}
+                  style={{ height: "450px" }}
+                />
+              </GridItem>
+              <GridItem>
+                <EChartWrapper
+                  option={longitudeTrendOption}
+                  isLoading={isLoadingTrends}
                   style={{ height: "450px" }}
                 />
               </GridItem>

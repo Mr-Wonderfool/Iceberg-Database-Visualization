@@ -1,4 +1,25 @@
-### 项目依赖
+## Iceberg Visualization Project
+### Project Description
+This is an iceberg visualization project built with data from [BYU iceberg database]((https://www.scp.byu.edu/current_icebergs.html)), aiming to facilitate research and usage of iceberg data. The main features of this project are: 
+1. A **robust backend**, cleaning and organizing data from original BYU database, initializing the backend database with both static file data and dynamic web data.
+2. **Visualizations in the frontend**. Multiple interactive graphs are created to display iceberg locations, number changes and movement patterns. 
+The project is built in a modular way, when extending this project for your own need, you only have to add new pages under `client/src/pages/` directory, and add the corresponding component to `Routes.tsx`.
+Pages      | Visualization                                                                  
+------------ | ------------ 
+**Prim Visualization** | ![Prim Visualization](images/prim算法运行过程.png)
+**Kruskal Visualization** | ![Kruskal Visualization](images/kruskal算法运行过程.png)
+**Dijkstra Visualization** | ![Dijkstra Visualization](images/dijkstra算法运行过程.png)
+**Floyd Visualization** | ![Floyd Visualization](images/Floyd算法过程.png)
+**Metro Lines** | ![Metro Lines](images/上海地铁线路图.png)
+**Transfer Routes** | ![Transfer Routes](images/换乘路线图.png)
+
+### Dependencies
+- frontend: `React+Vite+Typescript`, to setup relating packages, use:
+```bash
+cd client
+npm i
+```
+
 - 前端：`React+Vite+Typescript`，安装相关依赖：
 ```bash
 cd client

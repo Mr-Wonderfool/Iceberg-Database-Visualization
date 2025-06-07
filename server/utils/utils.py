@@ -61,10 +61,11 @@ def dec2dms(decimal_degrees: str, is_latitude: bool) -> str:
 
     return f"{degrees} {minutes}'{direction}"
 
+
 def extrapolate_trajectory_polynomial(times_seconds, values, future_times_seconds, degree=2):
     """
     Extrapolates values to future_times_seconds using polynomial fitting.
-    
+
     :param times_seconds: NumPy array of historical time points (in seconds, relative).
     :param values: NumPy array of historical values (lat or lon).
     :param future_times_seconds: NumPy array of future time points to predict (in seconds, relative to same epoch as times_seconds).
@@ -79,9 +80,11 @@ def extrapolate_trajectory_polynomial(times_seconds, values, future_times_second
             coeffs = np.polyfit(times_seconds, values, 1)
             poly_func = np.poly1d(coeffs)
             return poly_func(future_times_seconds)
-        elif len(times_seconds) == 1: # Can't extrapolate with one point, return the point itself for all future times (static)
-             return np.full_like(future_times_seconds, values[0], dtype=float)
-        else: # No data to extrapolate from
+        elif (
+            len(times_seconds) == 1
+        ):  # Can't extrapolate with one point, return the point itself for all future times (static)
+            return np.full_like(future_times_seconds, values[0], dtype=float)
+        else:  # No data to extrapolate from
             return np.array([])
 
     # Fit polynomial of the given degree
@@ -89,3 +92,34 @@ def extrapolate_trajectory_polynomial(times_seconds, values, future_times_second
     poly_func = np.poly1d(coeffs)
     predicted_values = poly_func(future_times_seconds)
     return predicted_values
+
+
+def calculate_trend_line(years, values):
+    """
+    Calculates a linear trend line for a given set of years and values.
+    Handles None/null values by ignoring them for the fit.
+
+    :param years: List of all years for the x-axis.
+    :param values: List of corresponding values, may contain None.
+    :return: A list of trend line values for all years.
+    """
+    # Filter out None values for fitting, but keep track of original indices
+    valid_points = [(year, value) for year, value in zip(years, values) if value is not None]
+
+    if len(valid_points) < 2:
+        # Cannot compute a trend with fewer than 2 points
+        return [None] * len(years)
+
+    fit_years = np.array([p[0] for p in valid_points])
+    fit_values = np.array([p[1] for p in valid_points])
+
+    # Perform linear regression (polynomial fit of degree 1)
+    # This returns [slope, intercept]
+    coeffs = np.polyfit(fit_years, fit_values, 1)
+    trend_poly = np.poly1d(coeffs)
+
+    # Calculate trend line values for all original years
+    all_years_np = np.array(years)
+    trend_values = trend_poly(all_years_np)
+
+    return trend_values.tolist()

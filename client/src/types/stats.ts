@@ -25,15 +25,6 @@ export type BirthDeathLocationPoint = {
   record_time: string;
 };
 
-export type AggregatedBirthDeathPoint = {
-  year: number;
-  type: "birth" | "death";
-  latitude: number;
-  longitude: number;
-  count: number;
-  name: string; // e.g., "Births in 2005 (15 icebergs)"
-};
-
 export type IcebergTimeSeriesPoint = {
   record_time: string; // ISO Date string
   rotational_velocity: number | null;
@@ -49,4 +40,20 @@ export type SizeDistributionOverTimeData = {
     stack: string;
     data: number[];
   }>;
+};
+
+export type LocationTrendData = {
+  years: string[];
+  birth_locations: {
+    latitudes: (number | null)[];
+    latitudes_trend: (number | null)[];
+    longitudes: (number | null)[];
+    longitudes_trend: (number | null)[];
+  };
+  death_locations: {
+    latitudes: (number | null)[];
+    latitudes_trend: (number | null)[];
+    longitudes: (number | null)[];
+    longitudes_trend: (number | null)[];
+  };
 };
