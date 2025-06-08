@@ -175,7 +175,7 @@ const IcebergDetail = () => {
     tooltip: {
       trigger: "axis",
       valueFormatter: (value) =>
-        value !== null ? (value as number).toFixed(2) + " deg/hr" : "N/A",
+        value !== null ? (value as number).toFixed(2) + " deg/day" : "N/A",
     },
     xAxis: {
       type: "time",
@@ -184,7 +184,7 @@ const IcebergDetail = () => {
     },
     yAxis: {
       type: "value",
-      name: "deg/hr",
+      name: "deg/day",
       scale: true,
       axisLabel: { color: textColor },
       axisLine: { lineStyle: { color: axisLineColor } },

@@ -411,7 +411,7 @@ const DashBoard = () => {
     },
     yAxis: {
       type: "value",
-      name: "Rotational Velocity (deg/hr)",
+      name: "Rotational Velocity (deg/day)",
       nameRotate: 90,
       nameLocation: "middle",
       nameGap: 40,
@@ -480,7 +480,7 @@ const DashBoard = () => {
       data: ["Birth Locations", "Melt Locations"],
       orient: "vertical",
       left: "left",
-      top: "bottom",
+      top: 0,
       textStyle: { color: textColor },
     },
     series: [
@@ -705,7 +705,7 @@ const DashBoard = () => {
   const sizeDistributionOverTimeOption: ECOption = {
     backgroundColor: chartBackgroundColor,
     title: {
-      text: "Iceberg Size Distribution Over Time (2005-2015)",
+      text: "Iceberg Size Distribution Over Time (2012-2021)",
       left: "center",
       textStyle: { color: textColor },
     },
@@ -757,7 +757,7 @@ const DashBoard = () => {
       axisLine: { lineStyle: { color: axisLineColor }, show: true },
       splitLine: { lineStyle: { color: useColorModeValue("#eee", "#444") } },
       nameRotate: 90,
-      nameGap: 30,
+      nameGap: 20,
       nameLocation: "middle",
     },
     series: sizeDistributionTimeData?.series_data || [],

@@ -80,14 +80,14 @@ def get_size_distribution():
 def get_size_distribution_over_time():
     """
     Provides data for iceberg size distribution (using area_at_record_time from IcebergInfo)
-    over time, grouped by year, for the period 2005-2015.
+    over time, grouped by year, for the period 2012-2022
     Returns data formatted for a stacked bar chart.
     """
     try:
-        start_year = 2005
-        end_year = 2015
+        start_year = 2012
+        end_year = 2021
 
-        bins = [0.0, 0.1, 10, 20, 30, 50, 100, 500, 1000, 3000, 5000, 7000, 10000, float("inf")]
+        bins = [0.0, 0.1, 10, 100, 500, 1000, 3000, 5000, 7000, 10000, float("inf")]
         bin_labels = []
         for i in range(len(bins) - 1):
             lower_bound = bins[i]
@@ -100,67 +100,58 @@ def get_size_distribution_over_time():
                 bin_labels.append(f"{lower_bound:.2f}-{upper_bound:.2f} km²")
 
         conditions = []
-        # Correctly iterate up to len(bins) - 1 for conditions, as bins define intervals
         for i in range(len(bins) - 1):
-            lower = bins[i]
-            upper = bins[i + 1]
-            label_for_condition = bin_labels[i]
-
+            lower, upper, label = bins[i], bins[i+1], bin_labels[i]
             if upper == float("inf"):
-                conditions.append((IcebergInfo.area_at_record_time >= lower, label_for_condition))
+                conditions.append((IcebergInfo.area_at_record_time >= lower, label))
             else:
-                conditions.append(
-                    (
-                        and_(IcebergInfo.area_at_record_time >= lower, IcebergInfo.area_at_record_time < upper),
-                        label_for_condition,
-                    )
-                )
-
+                conditions.append((and_(IcebergInfo.area_at_record_time >= lower, IcebergInfo.area_at_record_time < upper), label))
+        
         area_bin_case_statement = case(*conditions, else_=literal_column("'Other'")).label("area_bin")
-
-        # Query
-        results = (
+        
+        # inner subquery
+        distinct_records_sq = (
             db.session.query(
                 extract("year", IcebergInfo.record_time).label("record_year"),
                 area_bin_case_statement,
-                func.count(IcebergInfo.record_id).label("iceberg_observation_count"),
-                # ! although we should, but counting over distinct icebergs does not work
-                # func.count(func.distinct(IcebergInfo.iceberg_id)).label("unique_iceberg_count")
+                IcebergInfo.iceberg_id
             )
-            .filter(IcebergInfo.area_at_record_time.isnot(None))  # Exclude records where area is null
-            .filter(extract("year", IcebergInfo.record_time) >= start_year)
-            .filter(extract("year", IcebergInfo.record_time) <= end_year)
-            .group_by("record_year", "area_bin")
-            .order_by("record_year", "area_bin")
+            .filter(IcebergInfo.area_at_record_time.isnot(None))
+            .filter(extract("year", IcebergInfo.record_time).between(start_year, end_year))
+            .distinct()
+            .subquery("distinct_records")
+        )
+        
+        # outer query
+        results = (
+            db.session.query(
+                distinct_records_sq.c.record_year,
+                distinct_records_sq.c.area_bin,
+                func.count().label("unique_iceberg_count") # Count the rows from the distinct subquery
+            )
+            .group_by(distinct_records_sq.c.record_year, distinct_records_sq.c.area_bin)
+            .order_by(distinct_records_sq.c.record_year, distinct_records_sq.c.area_bin)
             .all()
         )
-
-        # Structure data for ECharts (stacked bar chart)
-        data_by_year_bin = {}  # {(year, bin_label): count}
+        
+        data_by_year_bin = {}
         all_years_set = set(range(start_year, end_year + 1))
-
+        
         for r in results:
-            year = int(r.record_year)
-            all_years_set.add(year)
-            data_by_year_bin[(year, r.area_bin)] = r.iceberg_observation_count
-
+            year, area_bin, count = int(r.record_year), r.area_bin, r.unique_iceberg_count
+            data_by_year_bin[(year, area_bin)] = count
+        
         sorted_years = sorted(list(all_years_set))
-
         series_data = []
         for bin_label in bin_labels:
-            counts_for_this_bin = []
-            for year in sorted_years:
-                counts_for_this_bin.append(data_by_year_bin.get((year, bin_label), 0))
-
-            series_data.append(
-                {
-                    "name": bin_label,
-                    "type": "bar",
-                    "stack": "total_stack",
-                    "emphasis": {"focus": "series"},
-                    "data": counts_for_this_bin,
-                }
-            )
+            counts = [data_by_year_bin.get((year, bin_label), 0) for year in sorted_years]
+            series_data.append({
+                "name": bin_label,
+                "type": "bar",
+                "stack": "total_stack",
+                "emphasis": {"focus": "series"},
+                "data": counts,
+            })
 
         other_counts = []
         has_other_data = False
