@@ -1,31 +1,37 @@
+<p align="center">
+    <img src="assets/icon.svg" width="50%" />
+</p>
+
 ## Iceberg Visualization Project
+Iceberg visualization project built with `React` as frontend and `Flask` as backend.
+<p align="center">
+    <img src="assets/common_passages.png" width="60%" />
+</p>
+
+Pages      | Visualization                                                                  
+------------ | ------------ 
+**Individual Iceberg Visualization** | ![Individual Iceberg Visualization](assets/single-iceberg-snapshot.png)
+**Iceberg Regional Density** | ![Heatmap](assets/heatmap-visualization-past-10-years.png)
+**Iceberg Trajectory** | ![Iceberg Trajectory](assets/iceberg-on-map.png)
+**Visualization Dashboard 1** | ![dashboard1](assets/dashboard-overview-1.png)
+**Visualization Dashboard 2** | ![dashboard2](assets/dashboard-overview-2.png)
+
 ### Project Description
 This is an iceberg visualization project built with data from [BYU iceberg database]((https://www.scp.byu.edu/current_icebergs.html)), aiming to facilitate research and usage of iceberg data. The main features of this project are: 
 1. A **robust backend**, cleaning and organizing data from original BYU database, initializing the backend database with both static file data and dynamic web data.
 2. **Visualizations in the frontend**. Multiple interactive graphs are created to display iceberg locations, number changes and movement patterns. 
-The project is built in a modular way, when extending this project for your own need, you only have to add new pages under `client/src/pages/` directory, and add the corresponding component to `Routes.tsx`.
-Pages      | Visualization                                                                  
------------- | ------------ 
-**Prim Visualization** | ![Prim Visualization](images/prim算法运行过程.png)
-**Kruskal Visualization** | ![Kruskal Visualization](images/kruskal算法运行过程.png)
-**Dijkstra Visualization** | ![Dijkstra Visualization](images/dijkstra算法运行过程.png)
-**Floyd Visualization** | ![Floyd Visualization](images/Floyd算法过程.png)
-**Metro Lines** | ![Metro Lines](images/上海地铁线路图.png)
-**Transfer Routes** | ![Transfer Routes](images/换乘路线图.png)
 
-### Dependencies
-- frontend: `React+Vite+Typescript`, to setup relating packages, use:
+The project is built in a modular way, when extending this project for your own need, you only have to: 
+1. Add new pages under `client/src/pages/` directory, and add the corresponding component to `Routes.tsx`.
+2. Create corresponding api in the backend under `server/routes` folder, and send request to this api through `axios` in the frontend.
+
+### Setting up Project
+- Frontend: `React+Vite+Typescript`, to setup relating packages, use:
 ```bash
 cd client
 npm i
 ```
-
-- 前端：`React+Vite+Typescript`，安装相关依赖：
-```bash
-cd client
-npm i
-```
-- 后端：`Flask`
+- Backend: `Flask`
 ```bash
 cd ../server
 pip install flask flask_cors flask_sqlalchemy
@@ -33,21 +39,12 @@ pip install flask_jwt_extended # json web token
 cd ..
 pip install -e .
 ```
-
-### 项目运行
-- 分别启动后端和前端：
+- Then to run the project and then enjoy it at `localhost:5173`:
 ```bash
 cd server
 python app.py
 cd ../client
 npm run dev
 ```
-之后在`localhost:5173`端口可以查看网页。
-- 数据库初始化时生成了一个管理员用户，用户名`root`，密码`111`(记录在`server/config.py`中)，可以直接登录，拥有数据库最高操作权限，例如删除用户的评论。
-- 第一次运行时，会在`src/server/instance`文件夹下生成`db.sqlite`。
-
-### 数据来源
-- 数据集来源于[NASA SCP](https://www.scp.byu.edu/current_icebergs.html)，利用`beautifulsoup4`库，对网页数据进行了爬取
-
-### 作者
-2251804 徐志铭
+- Database is initialized with a `root` user, who is a manager of the database. Key for this user can be set at `server/config.py`, and is `111` currently. 
+- The first time this project is run, a database file `db.sqlite` will be generated under `src/server/instance`, which contains all static files under `data` folder (initialization process would take around 5min). Later on when developing this project, **we strongly recommend that you do not reinitialize this database**, to prevent reinitialization, **comment the usage of `_initialize_database`** (line 44) in `server/app.py`.
